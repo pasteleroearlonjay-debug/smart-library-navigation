@@ -59,12 +59,20 @@ export async function GET(request: NextRequest) {
     const normalizedUserId =
       typeof userId === 'string' && !isNaN(Number(userId)) ? Number(userId) : userId
 
+    console.log(`Fetching notifications for user ID: ${normalizedUserId} (original: ${userId})`)
+
     // Fetch notifications from database
     const { data: notifications, error: notificationsError } = await supabase
       .from('user_notifications')
       .select('*')
       .eq('member_id', normalizedUserId)
       .order('created_at', { ascending: false })
+
+    if (notificationsError) {
+      console.error('Error fetching notifications:', notificationsError)
+    } else {
+      console.log(`Found ${notifications?.length || 0} notifications for user ${normalizedUserId}`)
+    }
 
     if (notificationsError) {
       console.error('Error fetching notifications:', notificationsError)

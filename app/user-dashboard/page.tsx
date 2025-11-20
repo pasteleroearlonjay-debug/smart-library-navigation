@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import { BookOpen, Lightbulb, BarChart3, Bell, Clock, AlertTriangle, CheckCircle, Calendar, Plus } from 'lucide-react'
+import { BookOpen, Lightbulb, BarChart3, Bell, Clock, AlertTriangle, CheckCircle, Calendar, Plus, RefreshCw } from 'lucide-react'
 import Link from "next/link"
 
 export default function UserDashboard() {
@@ -29,6 +29,7 @@ export default function UserDashboard() {
   const [selectedBook, setSelectedBook] = useState<any>(null)
   const [borrowingDays, setBorrowingDays] = useState(7)
   const [currentTime, setCurrentTime] = useState(Date.now())
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   useEffect(() => {
     // Check if user is logged in
@@ -44,10 +45,24 @@ export default function UserDashboard() {
     validateUserSession(token, user)
   }, [router])
 
+  // Timer updates every second for live countdown
   useEffect(() => {
-    const interval = setInterval(() => setCurrentTime(Date.now()), 60000)
-    return () => clearInterval(interval)
+    const timerInterval = setInterval(() => {
+      setCurrentTime(Date.now())
+    }, 1000)
+    return () => clearInterval(timerInterval)
   }, [])
+
+  // Refresh dashboard data every 10 seconds to get new notifications and stats
+  useEffect(() => {
+    if (!userData || isLoading) return
+    
+    const refreshInterval = setInterval(() => {
+      loadDashboardData()
+    }, 10000) // Refresh every 10 seconds for better real-time feel
+    
+    return () => clearInterval(refreshInterval)
+  }, [userData, isLoading])
 
   const validateUserSession = async (token: string, userString: string) => {
     try {
@@ -83,6 +98,8 @@ export default function UserDashboard() {
   const loadDashboardData = async () => {
     try {
       const token = localStorage.getItem('userToken')
+      if (!token) return
+      
       const response = await fetch('/api/user/notifications', {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -91,6 +108,8 @@ export default function UserDashboard() {
       const data = await response.json()
       
       if (response.ok) {
+        console.log('Loaded notifications:', data.notifications?.length || 0)
+        console.log('Notification data:', data.notifications)
         setNotifications(data.notifications || [])
         setDashboardStats({
           booksBorrowed: data.booksBorrowed || 0,
@@ -100,6 +119,8 @@ export default function UserDashboard() {
           unreadNotifications: data.unreadCount || 0
         })
         setDueSoonBooks(data.dueSoonBooks || [])
+      } else {
+        console.error('Failed to load dashboard data:', data)
       }
     } catch (error) {
       console.error('Failed to load dashboard data:', error)
@@ -217,23 +238,40 @@ export default function UserDashboard() {
   }
 
   const formatCountdown = (dueDate: string) => {
-    const due = new Date(dueDate)
-    const diffMs = due.getTime() - currentTime
-    const absMs = Math.abs(diffMs)
-    const hours = Math.floor(absMs / (1000 * 60 * 60))
-    const minutes = Math.floor((absMs % (1000 * 60 * 60)) / (1000 * 60))
+    try {
+      const due = new Date(dueDate)
+      if (isNaN(due.getTime())) return 'Invalid date'
+      
+      const diffMs = due.getTime() - currentTime
+      const absMs = Math.abs(diffMs)
+      const totalSeconds = Math.floor(absMs / 1000)
+      const hours = Math.floor(totalSeconds / 3600)
+      const minutes = Math.floor((totalSeconds % 3600) / 60)
+      const seconds = totalSeconds % 60
 
-    if (diffMs <= 0) {
-      return `Overdue ${hours}h ${minutes}m`
+      if (diffMs <= 0) {
+        const overdueHours = Math.floor(Math.abs(diffMs) / (1000 * 60 * 60))
+        const overdueMinutes = Math.floor((Math.abs(diffMs) % (1000 * 60 * 60)) / (1000 * 60))
+        return `Overdue ${overdueHours}h ${overdueMinutes}m`
+      }
+
+      if (hours >= 24) {
+        const days = Math.floor(hours / 24)
+        const remainingHours = hours % 24
+        return `${days}d ${remainingHours}h`
+      }
+
+      // Show countdown in format: "Xh Ym" or "Xh Ym Zs" if less than 1 hour
+      if (hours > 0) {
+        return `${hours}h ${minutes}m`
+      } else if (minutes > 0) {
+        return `${minutes}m ${seconds}s`
+      } else {
+        return `${seconds}s`
+      }
+    } catch (error) {
+      return 'Error calculating time'
     }
-
-    if (hours >= 24) {
-      const days = Math.floor(hours / 24)
-      const remainingHours = hours % 24
-      return `${days}d ${remainingHours}h`
-    }
-
-    return `${hours}h ${minutes}m`
   }
 
   if (isLoading) {
@@ -286,7 +324,22 @@ export default function UserDashboard() {
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">User Dashboard</h1>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex-1"></div>
+            <h1 className="text-4xl font-bold text-gray-900">User Dashboard</h1>
+            <div className="flex-1 flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => loadDashboardData(true)}
+                disabled={isRefreshing}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            </div>
+          </div>
           <p className="text-lg text-gray-600">Welcome to your Smart Library account</p>
           {userData && (
             <div className="mt-2">
@@ -524,47 +577,60 @@ export default function UserDashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {notifications.length > 0 ? (
-                    notifications.slice(0, 5).map((notification) => (
-                      <div 
-                        key={notification.id} 
-                        className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                          notification.isRead 
-                            ? 'bg-gray-50 border-gray-200' 
-                            : 'bg-blue-50 border-blue-200'
-                        }`}
-                        onClick={() => markNotificationAsRead(notification.id)}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <p className={`text-sm font-medium ${
-                              notification.isRead ? 'text-gray-700' : 'text-blue-900'
-                            }`}>
-                              {notification.title}
-                            </p>
-                            <p className={`text-xs mt-1 ${
-                              notification.isRead ? 'text-gray-500' : 'text-blue-700'
-                            }`}>
-                              {notification.message}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Clock className="h-3 w-3 text-gray-400" />
-                            <span className="text-xs text-gray-500">
-                              {new Date(notification.created_at).toLocaleDateString()}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-4">
-                      <Bell className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                      <p className="text-sm text-gray-500">No notifications yet</p>
-                    </div>
-                  )}
-                </div>
+                 <div className="space-y-3">
+                   {notifications && notifications.length > 0 ? (
+                     notifications.slice(0, 5).map((notification) => {
+                       const isRead = notification.is_read === true || notification.isRead === true
+                       return (
+                         <div 
+                           key={notification.id} 
+                           className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                             isRead
+                               ? 'bg-gray-50 border-gray-200' 
+                               : 'bg-blue-50 border-blue-200'
+                           }`}
+                           onClick={() => !isRead && markNotificationAsRead(notification.id)}
+                         >
+                           <div className="flex items-start justify-between">
+                             <div className="flex-1">
+                               <p className={`text-sm font-medium ${
+                                 isRead ? 'text-gray-700' : 'text-blue-900'
+                               }`}>
+                                 {notification.title || 'Notification'}
+                               </p>
+                               <p className={`text-xs mt-1 ${
+                                 isRead ? 'text-gray-500' : 'text-blue-700'
+                               }`}>
+                                 {notification.message || ''}
+                               </p>
+                               {notification.type && (
+                                 <Badge variant="outline" className="mt-1 text-xs">
+                                   {notification.type}
+                                 </Badge>
+                               )}
+                             </div>
+                             <div className="flex items-center gap-2">
+                               <Clock className="h-3 w-3 text-gray-400" />
+                               <span className="text-xs text-gray-500">
+                                 {notification.created_at 
+                                   ? new Date(notification.created_at).toLocaleDateString()
+                                   : 'Recently'}
+                               </span>
+                             </div>
+                           </div>
+                         </div>
+                       )
+                     })
+                   ) : (
+                     <div className="text-center py-4">
+                       <Bell className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                       <p className="text-sm text-gray-500">No notifications yet</p>
+                       <p className="text-xs text-gray-400 mt-1">
+                         You'll see notifications here when your book requests are updated
+                       </p>
+                     </div>
+                   )}
+                 </div>
               </CardContent>
             </Card>
 

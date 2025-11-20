@@ -132,10 +132,13 @@ async function createNotificationAndEmail(action: AdminAction, context: RequestC
   try {
     const template = NOTIFICATION_TEMPLATES[action]
     if (!template || !context.request?.member_id) {
+      console.log('Cannot create notification: missing template or member_id', { action, member_id: context.request?.member_id })
       return
     }
 
     const { message, emailSubject, emailBody } = template.buildMessage(context)
+    console.log(`Creating notification for member ${context.request.member_id}, action: ${action}`)
+    
     const { data: insertedNotification, error: notificationError } = await supabase
       .from('user_notifications')
       .insert({
@@ -151,11 +154,19 @@ async function createNotificationAndEmail(action: AdminAction, context: RequestC
 
     if (notificationError) {
       console.error('Failed to create user notification:', notificationError)
-      return
+      console.error('Notification error details:', {
+        member_id: context.request.member_id,
+        type: template.type,
+        error: notificationError.message
+      })
+      // Don't return - still try to send email if possible
+    } else {
+      console.log(`Notification created successfully: ID ${insertedNotification?.id}`)
     }
 
     const recipientEmail = context.request.user_email || context.member?.email
     if (!recipientEmail) {
+      console.log(`No email found for member ${context.request.member_id}, skipping email send`)
       return
     }
 
@@ -180,12 +191,14 @@ async function createNotificationAndEmail(action: AdminAction, context: RequestC
           .from('user_notifications')
           .update({ emailed_at: new Date().toISOString() })
           .eq('id', insertedNotification.id)
+        console.log(`Email sent and notification marked as emailed for notification ID ${insertedNotification.id}`)
       } else if (!emailResponse.ok) {
         const errorBody = await emailResponse.text()
         console.error('Failed to send approval email:', errorBody)
       }
     } catch (emailError) {
       console.error('Error sending approval email:', emailError)
+      // Notification was still created, so this is not a fatal error
     }
   } catch (error) {
     console.error('Failed to create notification/email:', error)
