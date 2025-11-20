@@ -180,8 +180,8 @@ This is an automated message. Please do not reply to this email.`,
         .insert({
           member_id: newUser.id,
           type: 'welcome',
-          title: 'Welcome to Smart Library!',
-          message: `Welcome ${name}! Your account has been created successfully. Please check your email to verify your account.`,
+          title: 'Welcome to Smart Library',
+          message: 'Welcome! You can now search for books and get LED guidance to their locations.',
           is_read: false
         })
     } catch (notificationError) {

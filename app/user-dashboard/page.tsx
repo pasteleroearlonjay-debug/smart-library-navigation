@@ -16,6 +16,7 @@ export default function UserDashboard() {
   const [userData, setUserData] = useState<any>(null)
   const [notifications, setNotifications] = useState<any[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
+  const [readyBooksCount, setReadyBooksCount] = useState(0)
   const [showNotifications, setShowNotifications] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [books, setBooks] = useState<any[]>([])
@@ -81,6 +82,7 @@ export default function UserDashboard() {
       if (response.ok) {
         setNotifications(data.notifications || [])
         setUnreadCount(data.unreadCount || 0)
+        setReadyBooksCount(data.readyBooksCount || 0)
       }
     } catch (error) {
       console.error('Failed to load notifications:', error)
@@ -220,7 +222,7 @@ export default function UserDashboard() {
     },
     { 
       title: "Ready Books", 
-      value: "2", 
+      value: readyBooksCount.toString(), 
       icon: CheckCircle, 
       color: "text-green-600",
       bgColor: "bg-green-50"
@@ -234,12 +236,8 @@ export default function UserDashboard() {
     }
   ]
 
-  const recentActivity = [
-    { action: "Book borrowed", book: "Algebra Fundamentals", time: "2 days ago", status: "active" },
-    { action: "Book returned", book: "Physics Principles", time: "1 week ago", status: "completed" },
-    { action: "Book requested", book: "Advanced Calculus", time: "3 days ago", status: "ready" },
-    { action: "Deadline reminder", book: "Chemistry Basics", time: "1 day ago", status: "warning" }
-  ]
+  // Show empty recent activity for new users (no hardcoded activities)
+  const recentActivity: any[] = []
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -299,20 +297,26 @@ export default function UserDashboard() {
                   <div className="p-4 bg-blue-50 rounded-lg">
                     <h3 className="font-semibold text-blue-900 mb-2">Recent Activity</h3>
                     <div className="space-y-2">
-                      {recentActivity.map((activity, index) => (
-                        <div key={index} className="flex items-center justify-between text-sm">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full ${
-                              activity.status === 'active' ? 'bg-blue-500' :
-                              activity.status === 'completed' ? 'bg-green-500' :
-                              activity.status === 'ready' ? 'bg-yellow-500' :
-                              'bg-red-500'
-                            }`} />
-                            <span>{activity.action}</span>
+                      {recentActivity.length > 0 ? (
+                        recentActivity.map((activity, index) => (
+                          <div key={index} className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-2 h-2 rounded-full ${
+                                activity.status === 'active' ? 'bg-blue-500' :
+                                activity.status === 'completed' ? 'bg-green-500' :
+                                activity.status === 'ready' ? 'bg-yellow-500' :
+                                'bg-red-500'
+                              }`} />
+                              <span>{activity.action}</span>
+                            </div>
+                            <span className="text-gray-500">{activity.time}</span>
                           </div>
-                          <span className="text-gray-500">{activity.time}</span>
+                        ))
+                      ) : (
+                        <div className="text-sm text-gray-500 text-center py-2">
+                          No recent activity. Start by searching for books!
                         </div>
-                      ))}
+                      )}
                     </div>
                   </div>
                 </div>

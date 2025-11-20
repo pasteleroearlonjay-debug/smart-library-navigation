@@ -6,6 +6,33 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
 const supabase = createClient(supabaseUrl, supabaseKey)
 
+// Helper function to get user ID from token
+async function getUserIdFromToken(token: string): Promise<string | number | null> {
+  try {
+    // Try to decode base64 token (format: base64(userId:timestamp))
+    try {
+      const decoded = Buffer.from(token, 'base64').toString('utf-8')
+      const [userId] = decoded.split(':')
+      if (userId) {
+        return userId
+      }
+    } catch (e) {
+      // Token might be Supabase session token, try to get user from Supabase
+    }
+
+    // Try to get user from Supabase Auth
+    const { data: { user }, error } = await supabase.auth.getUser(token)
+    if (user && !error) {
+      return user.id
+    }
+
+    return null
+  } catch (error) {
+    console.error('Error getting user ID from token:', error)
+    return null
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     // Get authorization token from header
@@ -19,53 +46,85 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // For now, let's create some sample notifications since the user_notifications table might not exist
-    // In a real implementation, you would validate the token and get the user ID
+    // Get user ID from token
+    const userId = await getUserIdFromToken(token)
     
-    // Sample notifications for demonstration
-    const sampleNotifications = [
-      {
-        id: 1,
-        type: 'book_ready',
-        title: 'Your Requested Book is Ready',
-        message: 'The book "Advanced Mathematics" you requested is now available for pickup.',
-        isRead: false,
-        created_at: new Date().toISOString(),
-        read_at: null
-      },
-      {
-        id: 2,
-        type: 'due_reminder',
-        title: 'Book Due Soon',
-        message: 'Your book "Physics Principles" is due in 2 days. Please return it on time.',
-        isRead: false,
-        created_at: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
-        read_at: null
-      },
-      {
-        id: 3,
-        type: 'welcome',
-        title: 'Welcome to Smart Library',
-        message: 'Welcome! You can now search for books and get LED guidance to their locations.',
-        isRead: true,
-        created_at: new Date(Date.now() - 259200000).toISOString(), // 3 days ago
-        read_at: new Date(Date.now() - 86400000).toISOString()
-      }
-    ]
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Invalid token or user not found' },
+        { status: 401 }
+      )
+    }
+
+    // Fetch notifications from database
+    const { data: notifications, error: notificationsError } = await supabase
+      .from('user_notifications')
+      .select('*')
+      .eq('member_id', userId)
+      .order('created_at', { ascending: false })
+
+    if (notificationsError) {
+      console.error('Error fetching notifications:', notificationsError)
+      // If table doesn't exist, return empty array for new users
+      return NextResponse.json({
+        success: true,
+        notifications: [],
+        unreadCount: 0,
+        overdueItems: 0,
+        dueSoonItems: 0,
+        readyBooksCount: 0
+      })
+    }
 
     // Count unread notifications
-    const unreadCount = sampleNotifications.filter(n => !n.isRead).length
+    const unreadCount = notifications?.filter(n => !n.is_read).length || 0
 
-    // Calculate stats
-    const overdueItems = 0 // Could be calculated from borrowing records
-    const dueSoonItems = 1 // Could be calculated from borrowing records
+    // Calculate stats from database
+    let overdueCount = 0
+    let dueSoonCount = 0
+    let readyBooksCount = 0
+
+    try {
+      const overdueResult = await supabase
+        .from('borrowing_records')
+        .select('*', { count: 'exact', head: true })
+        .eq('member_id', userId)
+        .eq('status', 'overdue')
+      overdueCount = overdueResult.count || 0
+    } catch (e) {
+      // Table might not exist, ignore
+    }
+
+    try {
+      const dueSoonResult = await supabase
+        .from('borrowing_records')
+        .select('*', { count: 'exact', head: true })
+        .eq('member_id', userId)
+        .eq('status', 'borrowed')
+        .lte('due_date', new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
+      dueSoonCount = dueSoonResult.count || 0
+    } catch (e) {
+      // Table might not exist, ignore
+    }
+
+    try {
+      const readyBooksResult = await supabase
+        .from('book_requests')
+        .select('*', { count: 'exact', head: true })
+        .eq('member_id', userId)
+        .eq('status', 'ready')
+      readyBooksCount = readyBooksResult.count || 0
+    } catch (e) {
+      // Table might not exist, ignore
+    }
 
     return NextResponse.json({
       success: true,
-      notifications: sampleNotifications,
+      notifications: notifications || [],
       unreadCount,
-      overdueItems,
-      dueSoonItems
+      overdueItems: overdueCount,
+      dueSoonItems: dueSoonCount,
+      readyBooksCount
     })
 
   } catch (error) {
