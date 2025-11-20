@@ -6,6 +6,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
 const supabase = createClient(supabaseUrl, supabaseKey)
+const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
 export async function POST(request: NextRequest) {
   try {
@@ -131,9 +132,9 @@ export async function POST(request: NextRequest) {
 
     // Send verification email
     try {
-      const verificationUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/verify-email?token=${verificationToken}&email=${encodeURIComponent(email)}`
+      const verificationUrl = `${appUrl}/verify-email?token=${verificationToken}&email=${encodeURIComponent(email)}`
       
-      const emailResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/email/send`, {
+      const emailResponse = await fetch(`${appUrl}/api/email/send`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -186,6 +187,41 @@ This is an automated message. Please do not reply to this email.`,
         })
     } catch (notificationError) {
       console.log('User notifications table not found, skipping welcome notification')
+    }
+
+    // Send welcome email (best effort)
+    try {
+      const welcomeEmailMessage = `Hello ${name},
+
+Welcome to Smart Library!
+
+You can now search for books, submit requests, and use LED guidance to find titles quickly.
+
+When you are ready, sign in at ${appUrl} to start exploring the collection.
+
+Happy reading!
+
+Smart Library System`
+
+      const welcomeEmailResponse = await fetch(`${appUrl}/api/email/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: email,
+          subject: 'Welcome to Smart Library',
+          message: welcomeEmailMessage,
+          type: 'welcome',
+          userId: newUser.id
+        })
+      })
+
+      if (!welcomeEmailResponse.ok) {
+        console.error('Failed to send welcome email:', await welcomeEmailResponse.text())
+      }
+    } catch (welcomeEmailError) {
+      console.error('Error sending welcome email:', welcomeEmailError)
     }
 
     return NextResponse.json({
