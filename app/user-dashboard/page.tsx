@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import { BookOpen, Lightbulb, BarChart3, Bell, Clock, AlertTriangle, CheckCircle, Calendar, Plus, RefreshCw } from 'lucide-react'
+import { BookOpen, Lightbulb, BarChart3, Bell, Clock, AlertTriangle, CheckCircle, Calendar, Plus, RefreshCw, ThumbsUp, XCircle, Package } from 'lucide-react'
 import Link from "next/link"
 
 export default function UserDashboard() {
@@ -390,25 +390,67 @@ export default function UserDashboard() {
               <CardContent>
                 {dueSoonBooks.length > 0 ? (
                   <div className="space-y-3">
-                    {dueSoonBooks.map((book) => (
-                      <div
-                        key={book.id}
-                        className="flex items-center justify-between border rounded-lg p-3"
-                      >
-                        <div>
-                          <p className="font-semibold text-gray-900">{book.title}</p>
-                          <p className="text-xs text-gray-500">
-                            Due {new Date(book.dueDate).toLocaleString()}
-                          </p>
-                        </div>
-                        <Badge
-                          variant={book.status === 'overdue' ? 'destructive' : 'secondary'}
-                          className="text-xs"
+                    {dueSoonBooks.map((book) => {
+                      const dueDate = new Date(book.dueDate)
+                      const diffMs = dueDate.getTime() - currentTime
+                      const hoursRemaining = Math.ceil(diffMs / (1000 * 60 * 60))
+                      const isOverdue = diffMs < 0
+                      const isUrgent = !isOverdue && hoursRemaining <= 6
+                      const isWarning = !isOverdue && hoursRemaining <= 12
+                      
+                      return (
+                        <div
+                          key={book.id}
+                          className={`border rounded-lg p-4 transition-all ${
+                            isOverdue 
+                              ? 'bg-red-50 border-red-200' 
+                              : isUrgent 
+                              ? 'bg-orange-50 border-orange-200' 
+                              : isWarning 
+                              ? 'bg-yellow-50 border-yellow-200' 
+                              : 'bg-green-50 border-green-200'
+                          }`}
                         >
-                          {formatCountdown(book.dueDate)}
-                        </Badge>
-                      </div>
-                    ))}
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <p className="font-semibold text-gray-900 mb-1">{book.title}</p>
+                              <p className="text-xs text-gray-500">
+                                Due {dueDate.toLocaleString()}
+                              </p>
+                            </div>
+                            <div className="ml-4 text-right">
+                              <div className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg font-mono text-sm font-bold ${
+                                isOverdue 
+                                  ? 'bg-red-100 text-red-700' 
+                                  : isUrgent 
+                                  ? 'bg-orange-100 text-orange-700' 
+                                  : isWarning 
+                                  ? 'bg-yellow-100 text-yellow-700' 
+                                  : 'bg-green-100 text-green-700'
+                              }`}>
+                                <Clock className="h-4 w-4" />
+                                <span>{formatCountdown(book.dueDate)}</span>
+                              </div>
+                            </div>
+                          </div>
+                          {/* Progress bar */}
+                          {!isOverdue && (
+                            <div className="mt-3">
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div 
+                                  className={`h-2 rounded-full transition-all ${
+                                    isUrgent ? 'bg-orange-500' : isWarning ? 'bg-yellow-500' : 'bg-green-500'
+                                  }`}
+                                  style={{ 
+                                    width: `${Math.min(100, Math.max(0, (hoursRemaining / 24) * 100))}%` 
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                 ) : (
                   <div className="text-center text-sm text-gray-500 py-4">
@@ -581,41 +623,71 @@ export default function UserDashboard() {
                    {notifications && notifications.length > 0 ? (
                      notifications.slice(0, 5).map((notification) => {
                        const isRead = notification.is_read === true || notification.isRead === true
+                       const notificationType = notification.type || ''
+                       
+                       // Get icon and color based on notification type
+                       let IconComponent = Bell
+                       let iconColor = 'text-blue-500'
+                       let bgColor = isRead ? 'bg-gray-50 border-gray-200' : 'bg-blue-50 border-blue-200'
+                       
+                       if (notificationType.includes('approved') || notificationType === 'book_approved') {
+                         IconComponent = ThumbsUp
+                         iconColor = 'text-green-500'
+                         bgColor = isRead ? 'bg-gray-50 border-gray-200' : 'bg-green-50 border-green-200'
+                       } else if (notificationType.includes('declined') || notificationType === 'book_declined') {
+                         IconComponent = XCircle
+                         iconColor = 'text-red-500'
+                         bgColor = isRead ? 'bg-gray-50 border-gray-200' : 'bg-red-50 border-red-200'
+                       } else if (notificationType.includes('received') || notificationType === 'book_received' || notificationType === 'book_ready') {
+                         IconComponent = Package
+                         iconColor = 'text-purple-500'
+                         bgColor = isRead ? 'bg-gray-50 border-gray-200' : 'bg-purple-50 border-purple-200'
+                       } else if (notificationType.includes('overdue') || notificationType === 'overdue_notice') {
+                         IconComponent = AlertTriangle
+                         iconColor = 'text-red-500'
+                         bgColor = isRead ? 'bg-gray-50 border-gray-200' : 'bg-red-50 border-red-200'
+                       } else if (notificationType.includes('deadline') || notificationType === 'deadline_reminder') {
+                         IconComponent = Clock
+                         iconColor = 'text-orange-500'
+                         bgColor = isRead ? 'bg-gray-50 border-gray-200' : 'bg-orange-50 border-orange-200'
+                       }
+                       
                        return (
                          <div 
                            key={notification.id} 
-                           className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                             isRead
-                               ? 'bg-gray-50 border-gray-200' 
-                               : 'bg-blue-50 border-blue-200'
-                           }`}
+                           className={`p-3 rounded-lg border cursor-pointer transition-colors ${bgColor}`}
                            onClick={() => !isRead && markNotificationAsRead(notification.id)}
                          >
-                           <div className="flex items-start justify-between">
-                             <div className="flex-1">
+                           <div className="flex items-start gap-3">
+                             <div className={`mt-0.5 ${iconColor}`}>
+                               <IconComponent className="h-5 w-5" />
+                             </div>
+                             <div className="flex-1 min-w-0">
                                <p className={`text-sm font-medium ${
-                                 isRead ? 'text-gray-700' : 'text-blue-900'
+                                 isRead ? 'text-gray-700' : 'text-gray-900'
                                }`}>
                                  {notification.title || 'Notification'}
                                </p>
                                <p className={`text-xs mt-1 ${
-                                 isRead ? 'text-gray-500' : 'text-blue-700'
+                                 isRead ? 'text-gray-500' : 'text-gray-700'
                                }`}>
                                  {notification.message || ''}
                                </p>
                                {notification.type && (
                                  <Badge variant="outline" className="mt-1 text-xs">
-                                   {notification.type}
+                                   {notification.type.replace('_', ' ')}
                                  </Badge>
                                )}
                              </div>
-                             <div className="flex items-center gap-2">
-                               <Clock className="h-3 w-3 text-gray-400" />
-                               <span className="text-xs text-gray-500">
+                             <div className="flex flex-col items-end gap-1">
+                               <span className="text-xs text-gray-400">
                                  {notification.created_at 
                                    ? new Date(notification.created_at).toLocaleDateString()
                                    : 'Recently'}
                                </span>
+                               {!isRead && (
+                                 <span className="h-2 w-2 bg-blue-500 rounded-full"></span>
+                               )}
                              </div>
                            </div>
                          </div>

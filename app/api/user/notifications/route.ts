@@ -56,22 +56,48 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const normalizedUserId =
-      typeof userId === 'string' && !isNaN(Number(userId)) ? Number(userId) : userId
+    // Normalize user ID - try both string and number formats
+    let normalizedUserId: string | number = userId
+    if (typeof userId === 'string') {
+      // Try to convert to number if it's a numeric string
+      const numId = Number(userId)
+      if (!isNaN(numId)) {
+        normalizedUserId = numId
+      }
+    }
 
-    console.log(`Fetching notifications for user ID: ${normalizedUserId} (original: ${userId})`)
+    console.log(`Fetching notifications for user ID: ${normalizedUserId} (original: ${userId}, type: ${typeof normalizedUserId})`)
 
-    // Fetch notifications from database
-    const { data: notifications, error: notificationsError } = await supabase
+    // Try querying with both string and number formats to handle any ID type mismatches
+    let notifications: any[] = []
+    let notificationsError: any = null
+
+    // First try with normalized ID
+    const { data: notifications1, error: error1 } = await supabase
       .from('user_notifications')
       .select('*')
       .eq('member_id', normalizedUserId)
       .order('created_at', { ascending: false })
 
-    if (notificationsError) {
-      console.error('Error fetching notifications:', notificationsError)
+    if (error1) {
+      console.error('Error fetching notifications with normalized ID:', error1)
+      // Try with original userId as fallback
+      const { data: notifications2, error: error2 } = await supabase
+        .from('user_notifications')
+        .select('*')
+        .eq('member_id', userId)
+        .order('created_at', { ascending: false })
+      
+      if (error2) {
+        console.error('Error fetching notifications with original ID:', error2)
+        notificationsError = error2
+      } else {
+        notifications = notifications2 || []
+        console.log(`Found ${notifications.length} notifications using original userId`)
+      }
     } else {
-      console.log(`Found ${notifications?.length || 0} notifications for user ${normalizedUserId}`)
+      notifications = notifications1 || []
+      console.log(`Found ${notifications.length} notifications using normalized userId`)
     }
 
     if (notificationsError) {
@@ -108,6 +134,10 @@ export async function GET(request: NextRequest) {
 
     try {
       const now = new Date()
+      const hourMs = 1000 * 60 * 60
+      const dayMs = hourMs * 24
+      
+      // Get books from borrowing_records
       const { data: borrowingRecords } = await supabase
         .from('borrowing_records')
         .select('*')
@@ -119,7 +149,6 @@ export async function GET(request: NextRequest) {
         )
         booksBorrowed = activeRecords.length
 
-        const hourMs = 1000 * 60 * 60
         const overdueRecords = activeRecords.filter(record => {
           if (!record.due_date) return false
           return new Date(record.due_date).getTime() < now.getTime()
@@ -129,10 +158,12 @@ export async function GET(request: NextRequest) {
         const dueSoonRecords = activeRecords.filter(record => {
           if (!record.due_date) return false
           const diffMs = new Date(record.due_date).getTime() - now.getTime()
-          return diffMs >= 0 && diffMs <= hourMs * 24
+          return diffMs >= 0 && diffMs <= dayMs
         })
         dueSoonCount = dueSoonRecords.length
-        dueSoonBooks = dueSoonRecords.map(record => {
+        
+        // Add borrowing records to dueSoonBooks
+        dueSoonBooks.push(...dueSoonRecords.map(record => {
           const dueDate = new Date(record.due_date!)
           const diffMs = dueDate.getTime() - now.getTime()
           const diffHours = Math.ceil(diffMs / hourMs)
@@ -144,31 +175,99 @@ export async function GET(request: NextRequest) {
             hoursUntilDue: Math.max(diffHours, 0),
             status: diffMs < 0 ? 'overdue' : 'due_soon'
           }
+        }))
+      }
+      
+      // Also get books from book_requests that are approved/accepted/ready/collected with due dates
+      const { data: bookRequests } = await supabase
+        .from('book_requests')
+        .select('*')
+        .eq('member_id', normalizedUserId)
+        .in('status', ['accepted', 'approved', 'ready', 'collected'])
+
+      if (bookRequests && bookRequests.length > 0) {
+        const requestsWithDueDates = bookRequests.filter(request => {
+          if (!request.due_date) return false
+          const diffMs = new Date(request.due_date).getTime() - now.getTime()
+          // Include if due within 24 hours or overdue
+          return diffMs <= dayMs
         })
+        
+        // Add book requests to dueSoonBooks (avoid duplicates)
+        const existingIds = new Set(dueSoonBooks.map(b => b.id))
+        requestsWithDueDates.forEach(request => {
+          const dueDate = new Date(request.due_date!)
+          const diffMs = dueDate.getTime() - now.getTime()
+          const diffHours = Math.ceil(diffMs / hourMs)
+          const requestId = `request-${request.id}`
+          
+          if (!existingIds.has(requestId)) {
+            dueSoonBooks.push({
+              id: request.id,
+              bookId: request.book_id,
+              title: request.book_title || `Book ID: ${request.book_id}`,
+              dueDate: request.due_date!,
+              hoursUntilDue: Math.max(diffHours, 0),
+              status: diffMs < 0 ? 'overdue' : 'due_soon'
+            })
+            existingIds.add(requestId)
+          }
+        })
+        
+        // Update dueSoonCount to include book requests
+        dueSoonCount = dueSoonBooks.filter(b => b.status === 'due_soon').length
+        overdueCount += dueSoonBooks.filter(b => b.status === 'overdue').length
       }
     } catch (e) {
+      console.error('Error fetching due soon books:', e)
       // Table might not exist, ignore
     }
 
     try {
-      const readyBooksResult = await supabase
+      // Try with normalized ID first
+      let readyResult = await supabase
         .from('book_requests')
         .select('*', { count: 'exact', head: true })
         .eq('member_id', normalizedUserId)
         .eq('status', 'ready')
-      readyBooksCount = readyBooksResult.count || 0
+      
+      if (readyResult.error && typeof userId !== typeof normalizedUserId) {
+        // Try with original userId if types don't match
+        readyResult = await supabase
+          .from('book_requests')
+          .select('*', { count: 'exact', head: true })
+          .eq('member_id', userId)
+          .eq('status', 'ready')
+      }
+      
+      readyBooksCount = readyResult.count || 0
+      console.log(`Ready books count: ${readyBooksCount} for user ${normalizedUserId}`)
     } catch (e) {
+      console.error('Error fetching ready books:', e)
       // Table might not exist, ignore
     }
 
     try {
-      const collectedBooksResult = await supabase
+      // Try with normalized ID first
+      let collectedResult = await supabase
         .from('book_requests')
         .select('*', { count: 'exact', head: true })
         .eq('member_id', normalizedUserId)
         .eq('status', 'collected')
-      collectedBooksCount = collectedBooksResult.count || 0
+      
+      if (collectedResult.error && typeof userId !== typeof normalizedUserId) {
+        // Try with original userId if types don't match
+        collectedResult = await supabase
+          .from('book_requests')
+          .select('*', { count: 'exact', head: true })
+          .eq('member_id', userId)
+          .eq('status', 'collected')
+      }
+      
+      collectedBooksCount = collectedResult.count || 0
+      console.log(`Collected books count: ${collectedBooksCount} for user ${normalizedUserId}`)
     } catch (e) {
+      console.error('Error fetching collected books:', e)
       // Table might not exist, ignore
     }
 

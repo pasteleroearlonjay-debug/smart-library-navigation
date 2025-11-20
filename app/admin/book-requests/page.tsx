@@ -49,6 +49,7 @@ export default function AdminBookRequestsPage() {
   })
   const [isLoading, setIsLoading] = useState(true)
   const [isProcessing, setIsProcessing] = useState<number | null>(null)
+  const [currentTime, setCurrentTime] = useState(Date.now())
 
   useEffect(() => {
     // Check admin authentication
@@ -61,6 +62,21 @@ export default function AdminBookRequestsPage() {
     }
 
     fetchBookRequests()
+    
+    // Timer updates every second for live countdown
+    const timerInterval = setInterval(() => {
+      setCurrentTime(Date.now())
+    }, 1000)
+    
+    // Auto-refresh requests every 30 seconds
+    const refreshInterval = setInterval(() => {
+      fetchBookRequests()
+    }, 30000)
+    
+    return () => {
+      clearInterval(timerInterval)
+      clearInterval(refreshInterval)
+    }
   }, [router])
 
   const fetchBookRequests = async () => {
@@ -164,6 +180,42 @@ export default function AdminBookRequestsPage() {
       alert('Failed to delete request')
     } finally {
       setIsProcessing(null)
+    }
+  }
+
+  const formatCountdown = (dueDate: string) => {
+    try {
+      const due = new Date(dueDate)
+      if (isNaN(due.getTime())) return 'Invalid date'
+      
+      const diffMs = due.getTime() - currentTime
+      const absMs = Math.abs(diffMs)
+      const totalSeconds = Math.floor(absMs / 1000)
+      const hours = Math.floor(totalSeconds / 3600)
+      const minutes = Math.floor((totalSeconds % 3600) / 60)
+      const seconds = totalSeconds % 60
+
+      if (diffMs <= 0) {
+        const overdueHours = Math.floor(Math.abs(diffMs) / (1000 * 60 * 60))
+        const overdueMinutes = Math.floor((Math.abs(diffMs) % (1000 * 60 * 60)) / (1000 * 60))
+        return `Overdue ${overdueHours}h ${overdueMinutes}m`
+      }
+
+      if (hours >= 24) {
+        const days = Math.floor(hours / 24)
+        const remainingHours = hours % 24
+        return `${days}d ${remainingHours}h`
+      }
+
+      if (hours > 0) {
+        return `${hours}h ${minutes}m`
+      } else if (minutes > 0) {
+        return `${minutes}m ${seconds}s`
+      } else {
+        return `${seconds}s`
+      }
+    } catch (error) {
+      return 'Error calculating time'
     }
   }
 
@@ -312,9 +364,25 @@ export default function AdminBookRequestsPage() {
                             <Badge variant="outline">{request.requested_days} days</Badge>
                           </TableCell>
                           <TableCell>
-                            <div className="flex items-center gap-1">
-                              <Calendar className="h-3 w-3 text-gray-400" />
-                              {request.due_date ? new Date(request.due_date).toLocaleDateString() : 'N/A'}
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3 text-gray-400" />
+                                <span className="text-sm">
+                                  {request.due_date ? new Date(request.due_date).toLocaleDateString() : 'N/A'}
+                                </span>
+                              </div>
+                              {request.due_date && ['accepted', 'approved', 'ready', 'collected'].includes(request.status) && (
+                                <div className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-mono font-semibold ${
+                                  new Date(request.due_date).getTime() < currentTime
+                                    ? 'bg-red-100 text-red-700'
+                                    : new Date(request.due_date).getTime() - currentTime < 24 * 60 * 60 * 1000
+                                    ? 'bg-orange-100 text-orange-700'
+                                    : 'bg-green-100 text-green-700'
+                                }`}>
+                                  <Clock className="h-3 w-3" />
+                                  {formatCountdown(request.due_date)}
+                                </div>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell>{getStatusBadge(request.status)}</TableCell>
