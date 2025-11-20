@@ -101,6 +101,29 @@ export async function POST(request: NextRequest) {
               `Smart Library System`
             break
 
+          case 'book_approved':
+            subject = notification.title || 'Book Request Approved'
+            emailMessage = `Dear ${member.name},\n\n` +
+              `${notification.message}\n\n` +
+              `Enjoy your reading!\n\n` +
+              `Smart Library System`
+            break
+
+          case 'book_declined':
+            subject = notification.title || 'Book Request Update'
+            emailMessage = `Dear ${member.name},\n\n` +
+              `${notification.message}\n\n` +
+              `Please contact the librarian if you have any questions.\n\n` +
+              `Smart Library System`
+            break
+
+          case 'book_received':
+            subject = notification.title || 'Book Pickup Confirmed'
+            emailMessage = `Dear ${member.name},\n\n` +
+              `${notification.message}\n\n` +
+              `Thank you for using Smart Library System!`
+            break
+
           case 'email_verification':
             subject = notification.title || 'Email Verification'
             emailMessage = `Dear ${member.name},\n\n` +

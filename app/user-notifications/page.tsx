@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Bell, Clock, CheckCircle, AlertTriangle, Mail, BookOpen, Calendar } from 'lucide-react'
+import { Bell, Clock, CheckCircle, AlertTriangle, Mail, BookOpen, Calendar, XCircle, ThumbsUp } from 'lucide-react'
 
 interface UserNotification {
   id: number
@@ -22,6 +22,7 @@ interface Stats {
   unreadNotifications: number
   overdueItems: number
   dueSoonItems: number
+  collectedBooks: number
 }
 
 export default function UserNotificationsPage() {
@@ -31,7 +32,8 @@ export default function UserNotificationsPage() {
     totalNotifications: 0,
     unreadNotifications: 0,
     overdueItems: 0,
-    dueSoonItems: 0
+    dueSoonItems: 0,
+    collectedBooks: 0
   })
   const [isLoading, setIsLoading] = useState(true)
 
@@ -93,7 +95,8 @@ export default function UserNotificationsPage() {
           totalNotifications: data.notifications?.length || 0,
           unreadNotifications: data.notifications?.filter((n: UserNotification) => !n.isRead).length || 0,
           overdueItems: data.overdueItems || 0,
-          dueSoonItems: data.dueSoonItems || 0
+          dueSoonItems: data.dueSoonItems || 0,
+          collectedBooks: data.collectedBooksCount || 0
         })
       } else {
         console.error('Failed to fetch notifications')
@@ -157,11 +160,19 @@ export default function UserNotificationsPage() {
   const getTypeBadge = (type: string) => {
     switch (type) {
       case "due_reminder":
+      case "deadline_reminder":
         return <Badge className="bg-yellow-100 text-yellow-800"><Clock className="h-3 w-3 mr-1" />Due Reminder</Badge>
       case "overdue":
+      case "overdue_notice":
         return <Badge variant="destructive"><AlertTriangle className="h-3 w-3 mr-1" />Overdue</Badge>
       case "book_ready":
         return <Badge className="bg-green-100 text-green-800"><CheckCircle className="h-3 w-3 mr-1" />Book Ready</Badge>
+      case "book_approved":
+        return <Badge className="bg-blue-100 text-blue-800"><ThumbsUp className="h-3 w-3 mr-1" />Approved</Badge>
+      case "book_declined":
+        return <Badge className="bg-red-100 text-red-800"><XCircle className="h-3 w-3 mr-1" />Declined</Badge>
+      case "book_received":
+        return <Badge className="bg-purple-100 text-purple-800"><CheckCircle className="h-3 w-3 mr-1" />Book Received</Badge>
       case "welcome":
         return <Badge className="bg-blue-100 text-blue-800"><Mail className="h-3 w-3 mr-1" />Welcome</Badge>
       default:
@@ -190,7 +201,7 @@ export default function UserNotificationsPage() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -232,6 +243,17 @@ export default function UserNotificationsPage() {
                   <p className="text-2xl font-bold text-gray-900">{stats.overdueItems}</p>
                 </div>
                 <AlertTriangle className="h-8 w-8 text-red-600" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Collected Books</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.collectedBooks}</p>
+                </div>
+                <CheckCircle className="h-8 w-8 text-green-600" />
               </div>
             </CardContent>
           </Card>

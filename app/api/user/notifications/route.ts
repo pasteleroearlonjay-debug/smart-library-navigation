@@ -72,7 +72,8 @@ export async function GET(request: NextRequest) {
         unreadCount: 0,
         overdueItems: 0,
         dueSoonItems: 0,
-        readyBooksCount: 0
+        readyBooksCount: 0,
+        collectedBooksCount: 0
       })
     }
 
@@ -83,6 +84,7 @@ export async function GET(request: NextRequest) {
     let overdueCount = 0
     let dueSoonCount = 0
     let readyBooksCount = 0
+    let collectedBooksCount = 0
 
     try {
       const overdueResult = await supabase
@@ -118,13 +120,25 @@ export async function GET(request: NextRequest) {
       // Table might not exist, ignore
     }
 
+    try {
+      const collectedBooksResult = await supabase
+        .from('book_requests')
+        .select('*', { count: 'exact', head: true })
+        .eq('member_id', userId)
+        .eq('status', 'collected')
+      collectedBooksCount = collectedBooksResult.count || 0
+    } catch (e) {
+      // Table might not exist, ignore
+    }
+
     return NextResponse.json({
       success: true,
       notifications: notifications || [],
       unreadCount,
       overdueItems: overdueCount,
       dueSoonItems: dueSoonCount,
-      readyBooksCount
+      readyBooksCount,
+      collectedBooksCount
     })
 
   } catch (error) {

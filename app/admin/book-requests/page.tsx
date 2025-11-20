@@ -93,7 +93,7 @@ export default function AdminBookRequestsPage() {
     }
   }
 
-  const handleRequestAction = async (requestId: number, action: 'approve' | 'decline') => {
+  const handleRequestAction = async (requestId: number, action: 'approve' | 'decline' | 'collect') => {
     setIsProcessing(requestId)
     try {
       const adminToken = localStorage.getItem('adminToken')
@@ -345,11 +345,32 @@ export default function AdminBookRequestsPage() {
                                 </Button>
                               </div>
                             ) : (
-                              <div className="flex items-center gap-2">
+                              <div className="flex flex-wrap items-center gap-2">
                                 <div className="text-sm text-gray-500">
                                   {request.processed_date && `Processed: ${new Date(request.processed_date).toLocaleDateString()}`}
                                 </div>
-                                {(request.status === 'accepted' || request.status === 'approved' || request.status === 'ready' || request.status === 'collected' || request.status === 'cancelled' || request.status === 'declined' || request.status === 'rejected') && (
+                                {['accepted', 'approved', 'ready'].includes(request.status) && (
+                                  <Button
+                                    size="sm"
+                                    className="bg-purple-600 hover:bg-purple-700"
+                                    onClick={() => handleRequestAction(request.id, 'collect')}
+                                    disabled={isProcessing === request.id}
+                                  >
+                                    {isProcessing === request.id ? (
+                                      <RefreshCw className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <CheckCircle className="h-3 w-3 mr-1" />
+                                    )}
+                                    Mark as Collected
+                                  </Button>
+                                )}
+                                {(request.status === 'accepted' ||
+                                  request.status === 'approved' ||
+                                  request.status === 'ready' ||
+                                  request.status === 'collected' ||
+                                  request.status === 'cancelled' ||
+                                  request.status === 'declined' ||
+                                  request.status === 'rejected') && (
                                   <Button
                                     size="sm"
                                     variant="outline"

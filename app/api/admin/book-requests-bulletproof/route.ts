@@ -4,6 +4,193 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 const supabase = createClient(supabaseUrl, supabaseKey)
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+
+type AdminAction = 'approve' | 'decline' | 'collect'
+
+interface RequestContext {
+  request: any
+  member: { id: number; name?: string | null; email?: string | null } | null
+  book: { title?: string | null; author?: string | null } | null
+}
+
+const NOTIFICATION_TEMPLATES: Record<
+  AdminAction,
+  {
+    type: string
+    title: string
+    buildMessage: (context: RequestContext) => { message: string; emailSubject: string; emailBody: string }
+  }
+> = {
+  approve: {
+    type: 'book_approved',
+    title: 'Book Request Approved',
+    buildMessage: ({ request, member, book }) => {
+      const bookTitle = request.book_title || book?.title || 'your requested book'
+      const dueDateText = request.due_date
+        ? new Date(request.due_date).toLocaleDateString()
+        : 'the scheduled due date'
+      const greeting = member?.name ? `Hi ${member.name},` : 'Hello,'
+      const message = `Your request for "${bookTitle}" was approved. Please pick up the book within the next few days. Due date: ${dueDateText}.`
+      const emailBody = `${greeting}
+
+${message}
+
+Borrowing period: ${request.requested_days || 'N/A'} day(s).
+
+Happy reading!
+Smart Library System`
+
+      return {
+        message,
+        emailSubject: 'Your book request has been approved',
+        emailBody
+      }
+    }
+  },
+  decline: {
+    type: 'book_declined',
+    title: 'Book Request Declined',
+    buildMessage: ({ request, member, book }) => {
+      const bookTitle = request.book_title || book?.title || 'your requested book'
+      const greeting = member?.name ? `Hi ${member.name},` : 'Hello,'
+      const message = `We’re sorry, but your request for "${bookTitle}" could not be approved at this time. Please reach out to the librarian for assistance or request another title.`
+      const emailBody = `${greeting}
+
+${message}
+
+Thank you for understanding.
+Smart Library System`
+
+      return {
+        message,
+        emailSubject: 'Your book request could not be approved',
+        emailBody
+      }
+    }
+  },
+  collect: {
+    type: 'book_received',
+    title: 'Book Pickup Confirmed',
+    buildMessage: ({ request, member, book }) => {
+      const bookTitle = request.book_title || book?.title || 'your book'
+      const dueDateText = request.due_date
+        ? new Date(request.due_date).toLocaleDateString()
+        : 'the scheduled due date'
+      const greeting = member?.name ? `Hi ${member.name},` : 'Hello,'
+      const message = `We’ve recorded that you picked up "${bookTitle}". Please enjoy reading and return it by ${dueDateText}.`
+      const emailBody = `${greeting}
+
+${message}
+
+Smart Library System`
+
+      return {
+        message,
+        emailSubject: 'Enjoy your book!',
+        emailBody
+      }
+    }
+  }
+}
+
+async function fetchRequestContext(request: any): Promise<RequestContext> {
+  const [memberResult, bookResult] = await Promise.allSettled([
+    request?.member_id
+      ? supabase
+          .from('library_members')
+          .select('id, name, email')
+          .eq('id', request.member_id)
+          .single()
+      : Promise.resolve({ data: null }),
+    request?.book_id
+      ? supabase
+          .from('books')
+          .select('id, title, author')
+          .eq('id', request.book_id)
+          .single()
+      : Promise.resolve({ data: null })
+  ])
+
+  const member =
+    memberResult.status === 'fulfilled' && !memberResult.value.error
+      ? (memberResult.value.data as { id: number; name?: string | null; email?: string | null })
+      : null
+  const book =
+    bookResult.status === 'fulfilled' && !bookResult.value.error
+      ? (bookResult.value.data as { title?: string | null; author?: string | null })
+      : null
+
+  return {
+    request,
+    member,
+    book
+  }
+}
+
+async function createNotificationAndEmail(action: AdminAction, context: RequestContext) {
+  try {
+    const template = NOTIFICATION_TEMPLATES[action]
+    if (!template || !context.request?.member_id) {
+      return
+    }
+
+    const { message, emailSubject, emailBody } = template.buildMessage(context)
+    const { data: insertedNotification, error: notificationError } = await supabase
+      .from('user_notifications')
+      .insert({
+        member_id: context.request.member_id,
+        type: template.type,
+        title: template.title,
+        message,
+        related_request_id: context.request.id,
+        is_read: false
+      })
+      .select('id')
+      .single()
+
+    if (notificationError) {
+      console.error('Failed to create user notification:', notificationError)
+      return
+    }
+
+    const recipientEmail = context.request.user_email || context.member?.email
+    if (!recipientEmail) {
+      return
+    }
+
+    try {
+      const emailResponse = await fetch(`${APP_URL}/api/email/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          to: recipientEmail,
+          subject: emailSubject,
+          message: emailBody,
+          type: template.type,
+          userId: context.request.member_id,
+          bookId: context.request.book_id
+        })
+      })
+
+      if (emailResponse.ok && insertedNotification?.id) {
+        await supabase
+          .from('user_notifications')
+          .update({ emailed_at: new Date().toISOString() })
+          .eq('id', insertedNotification.id)
+      } else if (!emailResponse.ok) {
+        const errorBody = await emailResponse.text()
+        console.error('Failed to send approval email:', errorBody)
+      }
+    } catch (emailError) {
+      console.error('Error sending approval email:', emailError)
+    }
+  } catch (error) {
+    console.error('Failed to create notification/email:', error)
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -196,9 +383,11 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    if (!['approve', 'decline'].includes(action)) {
+    const allowedActions = ['approve', 'decline', 'collect'] as AdminAction[]
+
+    if (!allowedActions.includes(action)) {
       return NextResponse.json(
-        { error: 'Action must be either "approve" or "decline"' },
+        { error: 'Action must be "approve", "decline", or "collect"' },
         { status: 400 }
       )
     }
@@ -206,9 +395,12 @@ export async function PUT(request: NextRequest) {
     // Use status values that are compatible with the book_requests constraint
     // Current constraint allows: 'pending', 'ready', 'collected', 'cancelled'
     // After running FIX_BOOK_REQUESTS_STATUS_CONSTRAINT.sql, it will also allow: 'accepted', 'approved', 'declined', 'rejected'
-    const statusOptions = action === 'approve' 
-      ? ['accepted', 'approved', 'ready', 'collected'] // Try accepted/approved first, fallback to ready/collected
-      : ['cancelled', 'declined', 'rejected'] // Use cancelled as primary decline status
+    const statusOptions =
+      action === 'approve'
+        ? ['accepted', 'approved', 'ready', 'collected'] // Try accepted/approved first, fallback to ready/collected
+        : action === 'collect'
+        ? ['collected']
+        : ['cancelled', 'declined', 'rejected'] // Use cancelled as primary decline status
     
     console.log(`Trying ${statusOptions.length} status values for ${action} action`)
 
@@ -234,50 +426,15 @@ export async function PUT(request: NextRequest) {
           continue // Try next status value
         }
 
-        // Success!
-        // Create user notification so the student sees this in their dashboard
-        try {
-          let bookTitle = 'the requested book'
-          try {
-            const { data: bookData } = await supabase
-              .from('books')
-              .select('title')
-              .eq('id', updatedRequest.book_id)
-              .single()
-
-            if (bookData?.title) {
-              bookTitle = `"${bookData.title}"`
-            }
-          } catch (bookError) {
-            console.log('Could not fetch book title for notification', bookError)
-          }
-
-          const isApprove = action === 'approve'
-          const notificationType = isApprove ? 'book_ready' : 'book_declined'
-          const notificationTitle = isApprove
-            ? 'Your Requested Book is Ready'
-            : 'Book Request Declined'
-          const notificationMessage = isApprove
-            ? `Your requested book ${bookTitle} has been accepted and is ready for pickup at the library.`
-            : `Your request for ${bookTitle} has been declined. Please contact the library for more information.`
-
-          await supabase
-            .from('user_notifications')
-            .insert({
-              member_id: updatedRequest.member_id,
-              type: notificationType,
-              title: notificationTitle,
-              message: notificationMessage,
-              is_read: false,
-            })
-        } catch (notificationError) {
-          console.log('Note: Could not create user notification for book request', notificationError)
-          // Do not fail the API if notification insertion fails
-        }
+        const context = await fetchRequestContext(updatedRequest)
+        await createNotificationAndEmail(action, context)
 
         return NextResponse.json({
           success: true,
-          message: `Book request ${action}d successfully`,
+          message:
+            action === 'collect'
+              ? 'Book marked as collected successfully'
+              : `Book request ${action}d successfully`,
           request: updatedRequest
         })
 

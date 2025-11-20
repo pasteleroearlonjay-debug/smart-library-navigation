@@ -17,6 +17,7 @@ export default function UserDashboard() {
   const [notifications, setNotifications] = useState<any[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [readyBooksCount, setReadyBooksCount] = useState(0)
+  const [collectedBooksCount, setCollectedBooksCount] = useState(0)
   const [showNotifications, setShowNotifications] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [books, setBooks] = useState<any[]>([])
@@ -83,6 +84,7 @@ export default function UserDashboard() {
         setNotifications(data.notifications || [])
         setUnreadCount(data.unreadCount || 0)
         setReadyBooksCount(data.readyBooksCount || 0)
+        setCollectedBooksCount(data.collectedBooksCount || 0)
       }
     } catch (error) {
       console.error('Failed to load notifications:', error)
@@ -167,12 +169,16 @@ export default function UserDashboard() {
 
   const markNotificationAsRead = async (notificationId: number) => {
     try {
+      const token = localStorage.getItem('userToken')
       await fetch(`/api/user/notifications/${notificationId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
         body: JSON.stringify({ isRead: true })
       })
-      loadNotifications(userData.id)
+      loadNotifications()
     } catch (error) {
       console.error('Failed to mark notification as read:', error)
     }
@@ -220,19 +226,26 @@ export default function UserDashboard() {
       color: "text-red-600",
       bgColor: "bg-red-50"
     },
-    { 
-      title: "Ready Books", 
-      value: readyBooksCount.toString(), 
-      icon: CheckCircle, 
+    {
+      title: "Ready Books",
+      value: readyBooksCount.toString(),
+      icon: CheckCircle,
       color: "text-green-600",
       bgColor: "bg-green-50"
     },
-    { 
-      title: "Notifications", 
-      value: unreadCount.toString(), 
-      icon: Bell, 
+    {
+      title: "Collected Books",
+      value: collectedBooksCount.toString(),
+      icon: Calendar,
       color: "text-purple-600",
       bgColor: "bg-purple-50"
+    },
+    {
+      title: "Notifications",
+      value: unreadCount.toString(),
+      icon: Bell,
+      color: "text-indigo-600",
+      bgColor: "bg-indigo-50"
     }
   ]
 
