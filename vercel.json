@@ -15,5 +15,11 @@
       "src": "/(.*)",
       "dest": "/$1"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/send-notifications",
+      "schedule": "0 9 * * *"
+    }
   ]
 }

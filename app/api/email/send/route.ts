@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import nodemailer from 'nodemailer'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -201,6 +200,9 @@ async function sendWithNodemailer(to: string, subject: string, message: string):
       console.log('SMTP credentials not configured, using mock email service')
       return await sendMockEmail(to, subject, message)
     }
+
+    // Dynamically import nodemailer to avoid webpack bundling issues
+    const nodemailer = (await import('nodemailer')).default
 
     // Create reusable transporter object using Gmail SMTP
     const transporter = nodemailer.createTransport({
