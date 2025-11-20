@@ -6,8 +6,6 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const supabase = createClient(supabaseUrl, supabaseKey)
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-const EXCLUDED_NOTIFICATION_TYPES = ['book_ready', 'book_approved']
-const EXCLUDED_TYPES_SQL = `(${EXCLUDED_NOTIFICATION_TYPES.map((type) => `"${type}"`).join(',')})`
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,7 +23,6 @@ export async function POST(request: NextRequest) {
       `)
       .eq('is_read', false)
       .is('emailed_at', null)
-    .not('type', 'in', EXCLUDED_TYPES_SQL)
       .order('created_at', { ascending: true })
 
     if (queryError) {

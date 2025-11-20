@@ -235,6 +235,46 @@ export async function PUT(request: NextRequest) {
         }
 
         // Success!
+        // Create user notification so the student sees this in their dashboard
+        try {
+          let bookTitle = 'the requested book'
+          try {
+            const { data: bookData } = await supabase
+              .from('books')
+              .select('title')
+              .eq('id', updatedRequest.book_id)
+              .single()
+
+            if (bookData?.title) {
+              bookTitle = `"${bookData.title}"`
+            }
+          } catch (bookError) {
+            console.log('Could not fetch book title for notification', bookError)
+          }
+
+          const isApprove = action === 'approve'
+          const notificationType = isApprove ? 'book_ready' : 'book_declined'
+          const notificationTitle = isApprove
+            ? 'Your Requested Book is Ready'
+            : 'Book Request Declined'
+          const notificationMessage = isApprove
+            ? `Your requested book ${bookTitle} has been accepted and is ready for pickup at the library.`
+            : `Your request for ${bookTitle} has been declined. Please contact the library for more information.`
+
+          await supabase
+            .from('user_notifications')
+            .insert({
+              member_id: updatedRequest.member_id,
+              type: notificationType,
+              title: notificationTitle,
+              message: notificationMessage,
+              is_read: false,
+            })
+        } catch (notificationError) {
+          console.log('Note: Could not create user notification for book request', notificationError)
+          // Do not fail the API if notification insertion fails
+        }
+
         return NextResponse.json({
           success: true,
           message: `Book request ${action}d successfully`,
