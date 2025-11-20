@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import nodemailer from 'nodemailer'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -29,20 +30,25 @@ export async function POST(request: NextRequest) {
     }
 
     let emailSent = false
-    let emailError = null
+    let emailError: string | null = null
 
     // Try different email services based on configuration
-    switch (EMAIL_SERVICE) {
-      case 'resend':
-        emailSent = await sendWithResend(to, subject, message)
-        break
-      case 'sendgrid':
-        emailSent = await sendWithSendGrid(to, subject, message)
-        break
-      case 'nodemailer':
-      default:
-        emailSent = await sendWithNodemailer(to, subject, message)
-        break
+    try {
+      switch (EMAIL_SERVICE) {
+        case 'resend':
+          emailSent = await sendWithResend(to, subject, message)
+          break
+        case 'sendgrid':
+          emailSent = await sendWithSendGrid(to, subject, message)
+          break
+        case 'nodemailer':
+        default:
+          emailSent = await sendWithNodemailer(to, subject, message)
+          break
+      }
+    } catch (error: any) {
+      emailError = error?.message || 'Unknown error occurred'
+      console.error('Email sending error:', emailError)
     }
 
     // Log email attempt to database
@@ -188,7 +194,7 @@ async function sendWithSendGrid(to: string, subject: string, message: string): P
   }
 }
 
-// Send email using Nodemailer (SMTP)
+// Send email using Nodemailer (SMTP) - Gmail implementation
 async function sendWithNodemailer(to: string, subject: string, message: string): Promise<boolean> {
   try {
     if (!SMTP_USER || !SMTP_PASS) {
@@ -196,12 +202,58 @@ async function sendWithNodemailer(to: string, subject: string, message: string):
       return await sendMockEmail(to, subject, message)
     }
 
-    // For now, we'll use a mock implementation since we can't use Node.js modules directly in Next.js API routes
-    // In a real implementation, you would use nodemailer here
-    console.log('Nodemailer not fully implemented, using mock email service')
-    return await sendMockEmail(to, subject, message)
-  } catch (error) {
+    // Create reusable transporter object using Gmail SMTP
+    const transporter = nodemailer.createTransport({
+      host: SMTP_HOST,
+      port: SMTP_PORT,
+      secure: false, // true for 465, false for other ports
+      auth: {
+        user: SMTP_USER,
+        pass: SMTP_PASS, // Gmail App Password
+      },
+      tls: {
+        rejectUnauthorized: false // For development, set to true in production with proper certificates
+      }
+    })
+
+    // Create HTML email template
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; text-align: center;">
+          <h1 style="color: white; margin: 0;">Smart Library System</h1>
+        </div>
+        <div style="padding: 30px; background: #f8f9fa;">
+          <h2 style="color: #333; margin-bottom: 20px;">${subject}</h2>
+          <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            ${message.replace(/\n/g, '<br>')}
+          </div>
+          <p style="color: #666; font-size: 14px; margin-top: 20px;">
+            This is an automated message from the Smart Library System. Please do not reply to this email.
+          </p>
+        </div>
+        <div style="background: #343a40; padding: 15px; text-align: center; color: white; font-size: 12px;">
+          © 2024 Smart Library System. All rights reserved.
+        </div>
+      </div>
+    `
+
+    // Send mail with defined transport object
+    const info = await transporter.sendMail({
+      from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
+      to: to,
+      subject: subject,
+      html: htmlContent,
+      text: message.replace(/<[^>]*>/g, ''), // Plain text version
+    })
+
+    console.log('Email sent successfully via Gmail SMTP:', info.messageId)
+    return true
+  } catch (error: any) {
     console.error('Error sending email via Nodemailer:', error)
+    // Return error details for debugging
+    if (error.response) {
+      console.error('SMTP Error Response:', error.response)
+    }
     return false
   }
 }

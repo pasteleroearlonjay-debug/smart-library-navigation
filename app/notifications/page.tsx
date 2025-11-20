@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Mail, Clock, CheckCircle, AlertTriangle, Send, RefreshCw, Bell } from 'lucide-react'
+import { Mail, Clock, CheckCircle, AlertTriangle, Send, RefreshCw, Bell, Trash2 } from 'lucide-react'
 import { AdminSidebar } from "@/components/admin-sidebar"
 
 interface EmailNotification {
@@ -73,6 +73,10 @@ export default function NotificationsPage() {
   })
   const [isLoading, setIsLoading] = useState(true)
   const [isProcessing, setIsProcessing] = useState(false)
+
+  const handleOpenTestEmailPage = () => {
+    router.push('/test-email')
+  }
 
   useEffect(() => {
     // Check admin authentication
@@ -181,6 +185,32 @@ export default function NotificationsPage() {
     } catch (error) {
       console.error('Error creating reminders:', error)
       alert('Failed to create reminders')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleSendDueReminders = async () => {
+    setIsProcessing(true)
+    try {
+      const response = await fetch('/api/notifications/send-due-reminders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        alert(`Due reminders sent successfully!\n\nSent: ${data.sent}\nFailed: ${data.failed}\nTotal: ${data.total}`)
+        fetchNotifications() // Refresh the data
+      } else {
+        alert(`Error: ${data.error || 'Failed to send due reminders'}`)
+      }
+    } catch (error) {
+      console.error('Error sending due reminders:', error)
+      alert('Failed to send due reminders')
     } finally {
       setIsProcessing(false)
     }
@@ -339,6 +369,15 @@ export default function NotificationsPage() {
                 <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
                 Refresh Data
               </Button>
+              <Button 
+                onClick={handleOpenTestEmailPage}
+                variant="outline"
+                className="flex items-center gap-2"
+                title="Open the Test Email page described in TEST_EMAIL_GUIDE.md"
+              >
+                <Mail className="h-4 w-4" />
+                Test Email Page
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -355,11 +394,10 @@ export default function NotificationsPage() {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="email" className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="email">Email Notifications ({stats.totalEmailNotifications})</TabsTrigger>
                 <TabsTrigger value="user">User Notifications ({stats.totalUserNotifications})</TabsTrigger>
                 <TabsTrigger value="due">Due Date Analysis ({stats.dueSoonItems + stats.overdueItems})</TabsTrigger>
-                <TabsTrigger value="pending">Pending ({pendingEmailNotifications.length})</TabsTrigger>
               </TabsList>
               
               <TabsContent value="email">
@@ -468,42 +506,6 @@ export default function NotificationsPage() {
                           {new Date(record.borrowedDate).toLocaleDateString()}
                         </TableCell>
                         <TableCell>{getTypeBadge(record.status)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TabsContent>
-              
-              <TabsContent value="pending">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>User</TableHead>
-                      <TableHead>Book</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Due Date</TableHead>
-                      <TableHead>Days Until Due</TableHead>
-                      <TableHead>Scheduled</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pendingEmailNotifications.map((notification) => (
-                      <TableRow key={notification.id}>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{notification.user}</div>
-                            <div className="text-sm text-gray-500">{notification.email}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-medium">{notification.book}</TableCell>
-                        <TableCell>{getTypeBadge(notification.type)}</TableCell>
-                        <TableCell>{notification.dueDate}</TableCell>
-                        <TableCell>
-                          <Badge variant={notification.daysUntilDue <= 1 ? "secondary" : "outline"}>
-                            {notification.daysUntilDue} days
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-sm text-gray-500">{notification.scheduledTime}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

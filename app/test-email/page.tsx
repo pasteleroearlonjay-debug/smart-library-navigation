@@ -232,38 +232,6 @@ export default function TestEmailPage() {
             </CardContent>
           </Card>
         )}
-
-        {/* Email Service Status */}
-        <Card className="mt-8">
-          <CardHeader>
-            <CardTitle>Email Service Status</CardTitle>
-            <CardDescription>
-              Current email service configuration
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <h4 className="font-medium mb-2">Service Type</h4>
-                <p className="text-sm text-gray-600">
-                  {process.env.NEXT_PUBLIC_EMAIL_SERVICE || 'Not configured'}
-                </p>
-              </div>
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <h4 className="font-medium mb-2">From Email</h4>
-                <p className="text-sm text-gray-600">
-                  {process.env.NEXT_PUBLIC_FROM_EMAIL || 'Not configured'}
-                </p>
-              </div>
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <h4 className="font-medium mb-2">Status</h4>
-                <Badge variant={process.env.NEXT_PUBLIC_EMAIL_SERVICE ? "default" : "destructive"}>
-                  {process.env.NEXT_PUBLIC_EMAIL_SERVICE ? 'Configured' : 'Not Configured'}
-                </Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   )
