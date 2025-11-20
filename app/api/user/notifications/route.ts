@@ -237,11 +237,9 @@ export async function GET(request: NextRequest) {
         .in('status', ['accepted', 'approved', 'ready', 'collected'])
 
       if (bookRequests && bookRequests.length > 0) {
+        // Include ALL books with due dates (not just within 24 hours) so timer always shows
         const requestsWithDueDates = bookRequests.filter(request => {
-          if (!request.due_date) return false
-          const diffMs = new Date(request.due_date).getTime() - now.getTime()
-          // Include if due within 24 hours or overdue
-          return diffMs <= dayMs
+          return request.due_date && new Date(request.due_date).getTime() > 0
         })
         
         // Add book requests to dueSoonBooks (avoid duplicates)
@@ -259,14 +257,17 @@ export async function GET(request: NextRequest) {
               title: request.book_title || `Book ID: ${request.book_id}`,
               dueDate: request.due_date!,
               hoursUntilDue: Math.max(diffHours, 0),
-              status: diffMs < 0 ? 'overdue' : 'due_soon'
+              status: diffMs < 0 ? 'overdue' : (diffMs <= dayMs ? 'due_soon' : 'due_soon')
             })
             existingIds.add(requestId)
           }
         })
         
-        // Update dueSoonCount to include book requests
-        dueSoonCount = dueSoonBooks.filter(b => b.status === 'due_soon').length
+        // Update dueSoonCount to include book requests due within 24 hours
+        dueSoonCount = dueSoonBooks.filter(b => {
+          const diffMs = new Date(b.dueDate).getTime() - now.getTime()
+          return diffMs >= 0 && diffMs <= dayMs
+        }).length
         overdueCount += dueSoonBooks.filter(b => b.status === 'overdue').length
       }
     } catch (e) {

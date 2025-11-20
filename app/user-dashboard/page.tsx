@@ -101,21 +101,10 @@ export default function UserDashboard() {
       const userDataString = localStorage.getItem('userData')
       
       if (!token) {
-        console.error('No token found in localStorage')
         return
       }
       
       if (showLoading) setIsRefreshing(true)
-      
-      console.log('Fetching dashboard data...')
-      if (userDataString) {
-        try {
-          const user = JSON.parse(userDataString)
-          console.log('Current user:', { id: user.id, email: user.email, name: user.name })
-        } catch (e) {
-          // Ignore parse errors
-        }
-      }
       
       const response = await fetch('/api/user/notifications', {
         headers: {
@@ -126,16 +115,6 @@ export default function UserDashboard() {
       const data = await response.json()
       
       if (response.ok) {
-        console.log('✅ Dashboard data loaded:')
-        console.log('  - Notifications:', data.notifications?.length || 0)
-        console.log('  - Unread:', data.unreadCount || 0)
-        console.log('  - Books Borrowed:', data.booksBorrowed || 0)
-        console.log('  - Overdue Items:', data.overdueItems || 0)
-        console.log('  - Due Soon Items:', data.dueSoonItems || 0)
-        console.log('  - Ready Books:', data.readyBooksCount || 0)
-        console.log('  - Collected Books:', data.collectedBooksCount || 0)
-        console.log('  - Due Soon Books:', data.dueSoonBooks?.length || 0)
-        
         setNotifications(data.notifications || [])
         setDashboardStats({
           booksBorrowed: data.booksBorrowed || 0,
@@ -146,10 +125,6 @@ export default function UserDashboard() {
         })
         setDueSoonBooks(data.dueSoonBooks || [])
       } else {
-        console.error('❌ Failed to load dashboard data:', {
-          status: response.status,
-          error: data.error
-        })
         setNotifications([])
         setDashboardStats({
           booksBorrowed: 0,
@@ -161,7 +136,6 @@ export default function UserDashboard() {
         setDueSoonBooks([])
       }
     } catch (error) {
-      console.error('❌ Exception loading dashboard data:', error)
       setNotifications([])
       setDashboardStats({
         booksBorrowed: 0,
@@ -430,80 +404,152 @@ export default function UserDashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Clock className="h-5 w-5" />
-                  Due Soon (Next 24 Hours)
+                  Book Due Dates
                 </CardTitle>
                 <CardDescription>
-                  Track books that need to be returned or renewed soon
+                  Track books that need to be returned
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 {dueSoonBooks.length > 0 ? (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {dueSoonBooks.map((book) => {
                       const dueDate = new Date(book.dueDate)
                       const diffMs = dueDate.getTime() - currentTime
-                      const hoursRemaining = Math.ceil(diffMs / (1000 * 60 * 60))
+                      const totalSeconds = Math.abs(Math.floor(diffMs / 1000))
+                      const days = Math.floor(totalSeconds / (3600 * 24))
+                      const hours = Math.floor((totalSeconds % (3600 * 24)) / 3600)
+                      const minutes = Math.floor((totalSeconds % 3600) / 60)
+                      const seconds = totalSeconds % 60
                       const isOverdue = diffMs < 0
-                      const isUrgent = !isOverdue && hoursRemaining <= 6
-                      const isWarning = !isOverdue && hoursRemaining <= 12
+                      
+                      // Calculate progress (30 days = 100%)
+                      const maxBorrowingDays = 30
+                      const totalDays = totalSeconds / (3600 * 24)
+                      const progress = isOverdue 
+                        ? 100 
+                        : Math.max(0, Math.min(100, ((maxBorrowingDays - totalDays) / maxBorrowingDays) * 100))
+                      
+                      // Color based on urgency
+                      let strokeColor = '#10b981' // green
+                      let textColor = 'text-green-600'
+                      let bgColor = 'bg-green-50 border-green-200'
+                      
+                      if (isOverdue) {
+                        strokeColor = '#ef4444' // red
+                        textColor = 'text-red-600'
+                        bgColor = 'bg-red-50 border-red-200'
+                      } else if (days === 0 && hours < 12) {
+                        strokeColor = '#f59e0b' // orange
+                        textColor = 'text-orange-600'
+                        bgColor = 'bg-orange-50 border-orange-200'
+                      } else if (days === 0 || days === 1) {
+                        strokeColor = '#eab308' // yellow
+                        textColor = 'text-yellow-600'
+                        bgColor = 'bg-yellow-50 border-yellow-200'
+                      }
+                      
+                      const size = 120
+                      const radius = (size - 24) / 2
+                      const circumference = 2 * Math.PI * radius
+                      const strokeDashoffset = circumference - (progress / 100) * circumference
+                      
+                      // Format time display with seconds
+                      let timeDisplay = ''
+                      let timeLabel = ''
+                      
+                      if (isOverdue) {
+                        if (days > 0) {
+                          timeDisplay = `${days}d ${hours}h`
+                          timeLabel = `${minutes}m ${seconds}s`
+                        } else if (hours > 0) {
+                          timeDisplay = `${hours}h ${minutes}m`
+                          timeLabel = `${seconds}s`
+                        } else if (minutes > 0) {
+                          timeDisplay = `${minutes}m ${seconds}s`
+                          timeLabel = 'Overdue'
+                        } else {
+                          timeDisplay = `${seconds}s`
+                          timeLabel = 'Overdue'
+                        }
+                      } else {
+                        if (days > 0) {
+                          timeDisplay = `${days}d ${hours}h`
+                          timeLabel = `${minutes}m ${seconds}s`
+                        } else if (hours > 0) {
+                          timeDisplay = `${hours}h ${minutes}m`
+                          timeLabel = `${seconds}s`
+                        } else if (minutes > 0) {
+                          timeDisplay = `${minutes}m ${seconds}s`
+                          timeLabel = 'remaining'
+                        } else {
+                          timeDisplay = `${seconds}s`
+                          timeLabel = 'remaining'
+                        }
+                      }
                       
                       return (
                         <div
                           key={book.id}
-                          className={`border rounded-lg p-4 transition-all ${
-                            isOverdue 
-                              ? 'bg-red-50 border-red-200' 
-                              : isUrgent 
-                              ? 'bg-orange-50 border-orange-200' 
-                              : isWarning 
-                              ? 'bg-yellow-50 border-yellow-200' 
-                              : 'bg-green-50 border-green-200'
-                          }`}
+                          className={`border rounded-lg p-4 transition-all ${bgColor}`}
                         >
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <p className="font-semibold text-gray-900 mb-1">{book.title}</p>
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-gray-900 mb-1 truncate">{book.title}</p>
                               <p className="text-xs text-gray-500">
-                                Due {dueDate.toLocaleString()}
+                                Due {dueDate.toLocaleDateString()} {dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </p>
                             </div>
-                            <div className="ml-4 text-right">
-                              <div className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg font-mono text-sm font-bold ${
-                                isOverdue 
-                                  ? 'bg-red-100 text-red-700' 
-                                  : isUrgent 
-                                  ? 'bg-orange-100 text-orange-700' 
-                                  : isWarning 
-                                  ? 'bg-yellow-100 text-yellow-700' 
-                                  : 'bg-green-100 text-green-700'
-                              }`}>
-                                <Clock className="h-4 w-4" />
-                                <span>{formatCountdown(book.dueDate)}</span>
+                            {/* Circular Timer with Seconds */}
+                            <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
+                              <svg
+                                width={size}
+                                height={size}
+                                className="transform -rotate-90"
+                              >
+                                {/* Background circle */}
+                                <circle
+                                  cx={size / 2}
+                                  cy={size / 2}
+                                  r={radius}
+                                  stroke="#e5e7eb"
+                                  strokeWidth="12"
+                                  fill="none"
+                                />
+                                {/* Progress circle */}
+                                <circle
+                                  cx={size / 2}
+                                  cy={size / 2}
+                                  r={radius}
+                                  stroke={strokeColor}
+                                  strokeWidth="12"
+                                  fill="none"
+                                  strokeDasharray={circumference}
+                                  strokeDashoffset={strokeDashoffset}
+                                  strokeLinecap="round"
+                                  className="transition-all duration-1000 ease-out"
+                                />
+                              </svg>
+                              {/* Center text with seconds */}
+                              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                <div className={`text-center ${textColor}`}>
+                                  <div className="text-xl font-bold leading-tight font-mono">
+                                    {timeDisplay}
+                                  </div>
+                                  <div className="text-xs opacity-75 mt-0.5 font-mono">
+                                    {timeLabel}
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           </div>
-                          {/* Progress bar */}
-                          {!isOverdue && (
-                            <div className="mt-3">
-                              <div className="w-full bg-gray-200 rounded-full h-2">
-                                <div 
-                                  className={`h-2 rounded-full transition-all ${
-                                    isUrgent ? 'bg-orange-500' : isWarning ? 'bg-yellow-500' : 'bg-green-500'
-                                  }`}
-                                  style={{ 
-                                    width: `${Math.min(100, Math.max(0, (hoursRemaining / 24) * 100))}%` 
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          )}
                         </div>
                       )
                     })}
                   </div>
                 ) : (
                   <div className="text-center text-sm text-gray-500 py-4">
-                    No books due within the next 24 hours.
+                    No books with due dates found.
                   </div>
                 )}
               </CardContent>

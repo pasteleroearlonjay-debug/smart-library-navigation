@@ -351,7 +351,94 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // Try to delete the request
+    // First, get the request details before deleting (for cascading deletes)
+    const { data: requestData, error: fetchError } = await supabase
+      .from('book_requests')
+      .select('id, member_id, book_id, due_date')
+      .eq('id', requestId)
+      .single()
+
+    if (fetchError || !requestData) {
+      console.error('Request not found:', fetchError)
+      return NextResponse.json(
+        { error: 'Request not found' },
+        { status: 404 }
+      )
+    }
+
+    // Delete related notifications first
+    try {
+      const { error: notificationError } = await supabase
+        .from('user_notifications')
+        .delete()
+        .eq('related_request_id', requestId)
+
+      if (notificationError) {
+        console.error('Error deleting notifications:', notificationError)
+        // Continue with deletion even if notifications fail
+      } else {
+        console.log(`Deleted notifications related to request ${requestId}`)
+      }
+    } catch (notificationException) {
+      console.error('Exception deleting notifications:', notificationException)
+      // Continue with deletion
+    }
+
+    // Delete related borrowing records (if they exist)
+    // Match by member_id, book_id, and due_date for precise deletion
+    try {
+      if (requestData.due_date) {
+        const { data: borrowingRecords, error: borrowFetchError } = await supabase
+          .from('borrowing_records')
+          .select('id')
+          .eq('member_id', requestData.member_id)
+          .eq('book_id', requestData.book_id)
+          .eq('due_date', requestData.due_date)
+
+        if (!borrowFetchError && borrowingRecords && borrowingRecords.length > 0) {
+          // Delete borrowing records that match this request (same member, book, and due date)
+          const { error: borrowDeleteError } = await supabase
+            .from('borrowing_records')
+            .delete()
+            .eq('member_id', requestData.member_id)
+            .eq('book_id', requestData.book_id)
+            .eq('due_date', requestData.due_date)
+
+          if (borrowDeleteError) {
+            console.error('Error deleting borrowing records:', borrowDeleteError)
+            // Continue with deletion even if borrowing records fail
+          } else {
+            console.log(`Deleted ${borrowingRecords.length} borrowing record(s) related to request ${requestId}`)
+          }
+        } else {
+          // If no exact match, try without due_date (fallback for older records)
+          const { data: fallbackRecords, error: fallbackError } = await supabase
+            .from('borrowing_records')
+            .select('id')
+            .eq('member_id', requestData.member_id)
+            .eq('book_id', requestData.book_id)
+            .eq('status', 'borrowed') // Only delete active borrowings
+
+          if (!fallbackError && fallbackRecords && fallbackRecords.length > 0) {
+            const { error: fallbackDeleteError } = await supabase
+              .from('borrowing_records')
+              .delete()
+              .eq('member_id', requestData.member_id)
+              .eq('book_id', requestData.book_id)
+              .eq('status', 'borrowed')
+
+            if (!fallbackDeleteError) {
+              console.log(`Deleted ${fallbackRecords.length} borrowing record(s) (fallback match) related to request ${requestId}`)
+            }
+          }
+        }
+      }
+    } catch (borrowException) {
+      console.error('Exception deleting borrowing records:', borrowException)
+      // Continue with deletion
+    }
+
+    // Finally, delete the book request itself
     const { error } = await supabase
       .from('book_requests')
       .delete()
@@ -365,9 +452,10 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
+    console.log(`Successfully deleted book request ${requestId} and all related data`)
     return NextResponse.json({
       success: true,
-      message: 'Book request deleted successfully'
+      message: 'Book request and all related data deleted successfully'
     })
 
   } catch (error) {
