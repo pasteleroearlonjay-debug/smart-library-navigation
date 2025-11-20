@@ -9,17 +9,13 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
 
 export async function POST(request: NextRequest) {
   try {
-    const today = new Date()
+    const now = new Date()
+    const today = new Date(now)
     today.setHours(0, 0, 0, 0)
-    const threeDaysFromNow = new Date(today)
-    threeDaysFromNow.setDate(today.getDate() + 3)
-    
     const todayStr = today.toISOString().split('T')[0]
-    const threeDaysStr = threeDaysFromNow.toISOString().split('T')[0]
 
-    // Query borrowing_records for books due within 3 days or already overdue
-    // Status must be 'borrowed' (not returned)
-    const { data: dueBooks, error: queryError } = await supabase
+    // Query borrowing_records for all borrowed books
+    const { data: borrowedBooks, error: queryError } = await supabase
       .from('borrowing_records')
       .select(`
         *,
@@ -30,7 +26,6 @@ export async function POST(request: NextRequest) {
         )
       `)
       .eq('status', 'borrowed')
-      .or(`due_date.lte.${threeDaysStr},due_date.lt.${todayStr}`)
       .order('due_date', { ascending: true })
 
     if (queryError) {
@@ -41,9 +36,28 @@ export async function POST(request: NextRequest) {
       }, { status: 500 })
     }
 
-    if (!dueBooks || dueBooks.length === 0) {
+    if (!borrowedBooks || borrowedBooks.length === 0) {
       return NextResponse.json({ 
         message: 'No books due for reminders',
+        sent: 0,
+        failed: 0
+      })
+    }
+
+    // Filter to overdue items or those due within the next 24 hours
+    const hourMs = 1000 * 60 * 60
+    const dueBooks = borrowedBooks.filter(record => {
+      if (!record.due_date) return false
+      const dueDate = new Date(record.due_date)
+      const diffHours = Math.ceil((dueDate.getTime() - now.getTime()) / hourMs)
+      const isOverdue = dueDate.getTime() < now.getTime()
+      const isDueWithinDay = diffHours <= 24 && diffHours >= 0
+      return isOverdue || isDueWithinDay
+    })
+
+    if (dueBooks.length === 0) {
+      return NextResponse.json({ 
+        message: 'No books due within the next 24 hours',
         sent: 0,
         failed: 0
       })
@@ -83,38 +97,80 @@ export async function POST(request: NextRequest) {
         }
 
         const dueDate = new Date(record.due_date)
-        const daysUntilDue = Math.ceil((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+        const diffMs = dueDate.getTime() - now.getTime()
+        const hoursUntilDue = Math.ceil(diffMs / hourMs)
+        const daysUntilDue = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+
+        if (record.last_reminder_sent) {
+          const lastReminderDate = new Date(record.last_reminder_sent)
+          lastReminderDate.setHours(0, 0, 0, 0)
+          if (lastReminderDate.toISOString().split('T')[0] === todayStr) {
+            console.log(`Skipping record ${record.id}: Already reminded today`)
+            continue
+          }
+        }
         
         // Determine email subject and message based on due status
         let subject: string
         let message: string
+        let notificationType: 'deadline_reminder' | 'overdue_notice'
         
-        if (daysUntilDue < 0) {
+        let notificationMessage = ''
+
+        if (diffMs < 0) {
           // Overdue
           const daysOverdue = Math.abs(daysUntilDue)
+          const hoursOverdue = Math.abs(hoursUntilDue)
           subject = `Overdue Book Reminder: "${record.book_title || 'Your Book'}"`
           message = `Dear ${member.name},\n\n` +
             `This is a reminder that your book "${record.book_title || 'Unknown Book'}" ` +
-            `is ${daysOverdue} day${daysOverdue > 1 ? 's' : ''} overdue.\n\n` +
+            `is ${daysOverdue} day${daysOverdue > 1 ? 's' : ''} (${hoursOverdue} hour${hoursOverdue !== 1 ? 's' : ''}) overdue.\n\n` +
             `Due Date: ${dueDate.toLocaleDateString()}\n` +
             `Borrowed Date: ${new Date(record.borrowed_date).toLocaleDateString()}\n\n` +
             `Please return this book to the library as soon as possible to avoid any penalties.\n\n` +
             `Thank you for your cooperation.\n\n` +
             `Smart Library System`
-        } else if (daysUntilDue <= 3) {
-          // Due soon (within 3 days)
-          subject = `Book Due Soon: "${record.book_title || 'Your Book'}"`
+          notificationType = 'overdue_notice'
+          notificationMessage = `Your book "${record.book_title || 'Unknown Book'}" is overdue by ${hoursOverdue} hour${hoursOverdue !== 1 ? 's' : ''}. Please return it immediately to avoid penalties.`
+        } else {
+          // Due within 24 hours
+          const hoursText = Math.max(hoursUntilDue, 0)
+          subject = `Due in 24 Hours: "${record.book_title || 'Your Book'}"`
           message = `Dear ${member.name},\n\n` +
             `This is a friendly reminder that your book "${record.book_title || 'Unknown Book'}" ` +
-            `is due in ${daysUntilDue} day${daysUntilDue > 1 ? 's' : ''}.\n\n` +
+            `is due in ${hoursText} hour${hoursText !== 1 ? 's' : ''}.\n\n` +
             `Due Date: ${dueDate.toLocaleDateString()}\n` +
             `Borrowed Date: ${new Date(record.borrowed_date).toLocaleDateString()}\n\n` +
             `Please return or renew this book before the due date to avoid any late fees.\n\n` +
             `Thank you!\n\n` +
             `Smart Library System`
-        } else {
-          // Should not happen based on query, but handle it
-          continue
+          notificationType = 'deadline_reminder'
+          notificationMessage = `Your book "${record.book_title || 'Unknown Book'}" is due in ${hoursText} hour${hoursText !== 1 ? 's' : ''} on ${dueDate.toLocaleDateString()}.`
+        }
+
+        // Create in-app notification before emailing (best effort)
+        let notificationId: number | null = null
+        try {
+          const { data: notificationRow, error: notificationError } = await supabase
+            .from('user_notifications')
+            .insert({
+              member_id: member.id,
+              type: notificationType,
+              title: notificationType === 'overdue_notice' ? 'Book Overdue' : 'Book Due in 24 Hours',
+              message: notificationMessage,
+              related_borrowing_record_id: record.id,
+              is_read: false
+            })
+            .select('id')
+            .single()
+
+          if (notificationError) {
+            console.error(`Failed to create user notification for record ${record.id}:`, notificationError)
+          } else {
+            notificationId = notificationRow?.id ?? null
+          }
+        } catch (notificationException) {
+          console.error(`Error inserting notification for record ${record.id}:`, notificationException)
         }
 
         // Send email via email API
@@ -127,7 +183,7 @@ export async function POST(request: NextRequest) {
             to: member.email,
             subject: subject,
             message: message,
-            type: daysUntilDue < 0 ? 'overdue_notice' : 'deadline_reminder',
+            type: notificationType,
             userId: member.id,
             bookId: record.book_id || null
           })
@@ -144,6 +200,13 @@ export async function POST(request: NextRequest) {
 
           if (updateError) {
             console.error(`Error updating last_reminder_sent for record ${record.id}:`, updateError)
+          }
+
+          if (notificationId) {
+            await supabase
+              .from('user_notifications')
+              .update({ emailed_at: new Date().toISOString() })
+              .eq('id', notificationId)
           }
 
           sentCount++

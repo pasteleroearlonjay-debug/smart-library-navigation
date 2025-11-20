@@ -173,6 +173,8 @@ export default function UserNotificationsPage() {
         return <Badge className="bg-red-100 text-red-800"><XCircle className="h-3 w-3 mr-1" />Declined</Badge>
       case "book_received":
         return <Badge className="bg-purple-100 text-purple-800"><CheckCircle className="h-3 w-3 mr-1" />Book Received</Badge>
+      case "book_request":
+        return <Badge className="bg-gray-100 text-gray-800"><BookOpen className="h-3 w-3 mr-1" />Request Submitted</Badge>
       case "welcome":
         return <Badge className="bg-blue-100 text-blue-800"><Mail className="h-3 w-3 mr-1" />Welcome</Badge>
       default:

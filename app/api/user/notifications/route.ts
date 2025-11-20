@@ -56,11 +56,14 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    const normalizedUserId =
+      typeof userId === 'string' && !isNaN(Number(userId)) ? Number(userId) : userId
+
     // Fetch notifications from database
     const { data: notifications, error: notificationsError } = await supabase
       .from('user_notifications')
       .select('*')
-      .eq('member_id', userId)
+      .eq('member_id', normalizedUserId)
       .order('created_at', { ascending: false })
 
     if (notificationsError) {
@@ -85,26 +88,56 @@ export async function GET(request: NextRequest) {
     let dueSoonCount = 0
     let readyBooksCount = 0
     let collectedBooksCount = 0
+    let booksBorrowed = 0
+    let dueSoonBooks: Array<{
+      id: number
+      bookId: number | null
+      title: string
+      dueDate: string
+      hoursUntilDue: number
+      status: 'due_soon' | 'overdue'
+    }> = []
 
     try {
-      const overdueResult = await supabase
+      const now = new Date()
+      const { data: borrowingRecords } = await supabase
         .from('borrowing_records')
-        .select('*', { count: 'exact', head: true })
-        .eq('member_id', userId)
-        .eq('status', 'overdue')
-      overdueCount = overdueResult.count || 0
-    } catch (e) {
-      // Table might not exist, ignore
-    }
+        .select('*')
+        .eq('member_id', normalizedUserId)
 
-    try {
-      const dueSoonResult = await supabase
-        .from('borrowing_records')
-        .select('*', { count: 'exact', head: true })
-        .eq('member_id', userId)
-        .eq('status', 'borrowed')
-        .lte('due_date', new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
-      dueSoonCount = dueSoonResult.count || 0
+      if (borrowingRecords && borrowingRecords.length > 0) {
+        const activeRecords = borrowingRecords.filter(record =>
+          ['borrowed', 'overdue'].includes((record.status || '').toLowerCase())
+        )
+        booksBorrowed = activeRecords.length
+
+        const hourMs = 1000 * 60 * 60
+        const overdueRecords = activeRecords.filter(record => {
+          if (!record.due_date) return false
+          return new Date(record.due_date).getTime() < now.getTime()
+        })
+        overdueCount = overdueRecords.length
+
+        const dueSoonRecords = activeRecords.filter(record => {
+          if (!record.due_date) return false
+          const diffMs = new Date(record.due_date).getTime() - now.getTime()
+          return diffMs >= 0 && diffMs <= hourMs * 24
+        })
+        dueSoonCount = dueSoonRecords.length
+        dueSoonBooks = dueSoonRecords.map(record => {
+          const dueDate = new Date(record.due_date!)
+          const diffMs = dueDate.getTime() - now.getTime()
+          const diffHours = Math.ceil(diffMs / hourMs)
+          return {
+            id: record.id,
+            bookId: record.book_id,
+            title: record.book_title || `Book ID: ${record.book_id}`,
+            dueDate: record.due_date!,
+            hoursUntilDue: Math.max(diffHours, 0),
+            status: diffMs < 0 ? 'overdue' : 'due_soon'
+          }
+        })
+      }
     } catch (e) {
       // Table might not exist, ignore
     }
@@ -113,7 +146,7 @@ export async function GET(request: NextRequest) {
       const readyBooksResult = await supabase
         .from('book_requests')
         .select('*', { count: 'exact', head: true })
-        .eq('member_id', userId)
+        .eq('member_id', normalizedUserId)
         .eq('status', 'ready')
       readyBooksCount = readyBooksResult.count || 0
     } catch (e) {
@@ -124,7 +157,7 @@ export async function GET(request: NextRequest) {
       const collectedBooksResult = await supabase
         .from('book_requests')
         .select('*', { count: 'exact', head: true })
-        .eq('member_id', userId)
+        .eq('member_id', normalizedUserId)
         .eq('status', 'collected')
       collectedBooksCount = collectedBooksResult.count || 0
     } catch (e) {
@@ -138,7 +171,9 @@ export async function GET(request: NextRequest) {
       overdueItems: overdueCount,
       dueSoonItems: dueSoonCount,
       readyBooksCount,
-      collectedBooksCount
+      collectedBooksCount,
+      booksBorrowed,
+      dueSoonBooks
     })
 
   } catch (error) {

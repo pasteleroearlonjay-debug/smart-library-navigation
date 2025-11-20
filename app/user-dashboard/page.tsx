@@ -8,22 +8,27 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import { BookOpen, Users, Lightbulb, Mail, BarChart3, Bell, Clock, AlertTriangle, CheckCircle, Calendar, Plus } from 'lucide-react'
+import { BookOpen, Lightbulb, BarChart3, Bell, Clock, AlertTriangle, CheckCircle, Calendar, Plus } from 'lucide-react'
 import Link from "next/link"
 
 export default function UserDashboard() {
   const router = useRouter()
   const [userData, setUserData] = useState<any>(null)
   const [notifications, setNotifications] = useState<any[]>([])
-  const [unreadCount, setUnreadCount] = useState(0)
-  const [readyBooksCount, setReadyBooksCount] = useState(0)
-  const [collectedBooksCount, setCollectedBooksCount] = useState(0)
-  const [showNotifications, setShowNotifications] = useState(false)
+  const [dashboardStats, setDashboardStats] = useState({
+    booksBorrowed: 0,
+    overdueItems: 0,
+    readyBooks: 0,
+    collectedBooks: 0,
+    unreadNotifications: 0
+  })
+  const [dueSoonBooks, setDueSoonBooks] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [books, setBooks] = useState<any[]>([])
   const [showRequestDialog, setShowRequestDialog] = useState(false)
   const [selectedBook, setSelectedBook] = useState<any>(null)
   const [borrowingDays, setBorrowingDays] = useState(7)
+  const [currentTime, setCurrentTime] = useState(Date.now())
 
   useEffect(() => {
     // Check if user is logged in
@@ -39,6 +44,11 @@ export default function UserDashboard() {
     validateUserSession(token, user)
   }, [router])
 
+  useEffect(() => {
+    const interval = setInterval(() => setCurrentTime(Date.now()), 60000)
+    return () => clearInterval(interval)
+  }, [])
+
   const validateUserSession = async (token: string, userString: string) => {
     try {
       // Verify the token is valid by making a test API call
@@ -52,7 +62,7 @@ export default function UserDashboard() {
         // Token is valid, set user data and load notifications
         const userData = JSON.parse(userString)
         setUserData(userData)
-        loadNotifications()
+        loadDashboardData()
         loadBooks()
         setIsLoading(false)
       } else {
@@ -70,7 +80,7 @@ export default function UserDashboard() {
     }
   }
 
-  const loadNotifications = async () => {
+  const loadDashboardData = async () => {
     try {
       const token = localStorage.getItem('userToken')
       const response = await fetch('/api/user/notifications', {
@@ -82,12 +92,17 @@ export default function UserDashboard() {
       
       if (response.ok) {
         setNotifications(data.notifications || [])
-        setUnreadCount(data.unreadCount || 0)
-        setReadyBooksCount(data.readyBooksCount || 0)
-        setCollectedBooksCount(data.collectedBooksCount || 0)
+        setDashboardStats({
+          booksBorrowed: data.booksBorrowed || 0,
+          overdueItems: data.overdueItems || 0,
+          readyBooks: data.readyBooksCount || 0,
+          collectedBooks: data.collectedBooksCount || 0,
+          unreadNotifications: data.unreadCount || 0
+        })
+        setDueSoonBooks(data.dueSoonBooks || [])
       }
     } catch (error) {
-      console.error('Failed to load notifications:', error)
+      console.error('Failed to load dashboard data:', error)
     }
   }
 
@@ -158,6 +173,7 @@ export default function UserDashboard() {
         setSelectedBook(null)
         setBorrowingDays(7)
         loadBooks() // Refresh book availability
+        loadDashboardData()
       } else {
         alert(`Error: ${data.error}`)
       }
@@ -178,7 +194,7 @@ export default function UserDashboard() {
         },
         body: JSON.stringify({ isRead: true })
       })
-      loadNotifications()
+      loadDashboardData()
     } catch (error) {
       console.error('Failed to mark notification as read:', error)
     }
@@ -200,6 +216,26 @@ export default function UserDashboard() {
     router.push('/')
   }
 
+  const formatCountdown = (dueDate: string) => {
+    const due = new Date(dueDate)
+    const diffMs = due.getTime() - currentTime
+    const absMs = Math.abs(diffMs)
+    const hours = Math.floor(absMs / (1000 * 60 * 60))
+    const minutes = Math.floor((absMs % (1000 * 60 * 60)) / (1000 * 60))
+
+    if (diffMs <= 0) {
+      return `Overdue ${hours}h ${minutes}m`
+    }
+
+    if (hours >= 24) {
+      const days = Math.floor(hours / 24)
+      const remainingHours = hours % 24
+      return `${days}d ${remainingHours}h`
+    }
+
+    return `${hours}h ${minutes}m`
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
@@ -214,38 +250,31 @@ export default function UserDashboard() {
   const stats = [
     { 
       title: "Books Borrowed", 
-      value: userData?.borrowedCount || 0, 
+      value: dashboardStats.booksBorrowed, 
       icon: BookOpen, 
       color: "text-blue-600",
       bgColor: "bg-blue-50"
     },
     { 
       title: "Overdue Items", 
-      value: userData?.overdueCount || 0, 
+      value: dashboardStats.overdueItems, 
       icon: AlertTriangle, 
       color: "text-red-600",
       bgColor: "bg-red-50"
     },
     {
       title: "Ready Books",
-      value: readyBooksCount.toString(),
+      value: dashboardStats.readyBooks,
       icon: CheckCircle,
       color: "text-green-600",
       bgColor: "bg-green-50"
     },
     {
       title: "Collected Books",
-      value: collectedBooksCount.toString(),
+      value: dashboardStats.collectedBooks,
       icon: Calendar,
       color: "text-purple-600",
       bgColor: "bg-purple-50"
-    },
-    {
-      title: "Notifications",
-      value: unreadCount.toString(),
-      icon: Bell,
-      color: "text-indigo-600",
-      bgColor: "bg-indigo-50"
     }
   ]
 
@@ -294,6 +323,48 @@ export default function UserDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column - Dashboard & Search & Light */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Due Soon Countdown */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5" />
+                  Due Soon (Next 24 Hours)
+                </CardTitle>
+                <CardDescription>
+                  Track books that need to be returned or renewed soon
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {dueSoonBooks.length > 0 ? (
+                  <div className="space-y-3">
+                    {dueSoonBooks.map((book) => (
+                      <div
+                        key={book.id}
+                        className="flex items-center justify-between border rounded-lg p-3"
+                      >
+                        <div>
+                          <p className="font-semibold text-gray-900">{book.title}</p>
+                          <p className="text-xs text-gray-500">
+                            Due {new Date(book.dueDate).toLocaleString()}
+                          </p>
+                        </div>
+                        <Badge
+                          variant={book.status === 'overdue' ? 'destructive' : 'secondary'}
+                          className="text-xs"
+                        >
+                          {formatCountdown(book.dueDate)}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center text-sm text-gray-500 py-4">
+                    No books due within the next 24 hours.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Dashboard Tab */}
             <Card>
               <CardHeader>
@@ -442,9 +513,9 @@ export default function UserDashboard() {
                     <Bell className="h-5 w-5" />
                     Notifications
                   </div>
-                  {unreadCount > 0 && (
+                  {dashboardStats.unreadNotifications > 0 && (
                     <Badge variant="destructive" className="text-xs">
-                      {unreadCount} new
+                      {dashboardStats.unreadNotifications} new
                     </Badge>
                   )}
                 </CardTitle>

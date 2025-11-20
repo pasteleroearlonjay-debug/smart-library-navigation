@@ -465,9 +465,7 @@ export default function NotificationsPage() {
                         <TableCell>
                           {notification.isRead ? (
                             <Badge className="bg-green-100 text-green-800">Read</Badge>
-                          ) : (
-                            <Badge className="bg-yellow-100 text-yellow-800">Unread</Badge>
-                          )}
+                          ) : null}
                         </TableCell>
                         <TableCell className="text-sm text-gray-500">
                           {new Date(notification.createdAt).toLocaleDateString()}

@@ -18,6 +18,7 @@ BEGIN
             'overdue_notice',
             'welcome',
             'email_verification',
+            'book_request',
             'book_approved',
             'book_declined',
             'book_received'

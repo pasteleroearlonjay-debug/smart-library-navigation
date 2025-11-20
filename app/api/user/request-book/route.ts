@@ -191,10 +191,11 @@ export async function POST(request: NextRequest) {
       await supabase
         .from('user_notifications')
         .insert({
-          member_id: userId,
+          member_id: numericUserId,
           type: 'book_request',
           title: 'Book Request Submitted',
           message: `Your request for "${book.title}" has been submitted and is pending admin approval.`,
+          related_request_id: insertedRequest.id,
           is_read: false
         })
     } catch (notificationError) {
