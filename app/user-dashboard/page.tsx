@@ -95,21 +95,47 @@ export default function UserDashboard() {
     }
   }
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = async (showLoading = false) => {
     try {
       const token = localStorage.getItem('userToken')
-      if (!token) return
+      const userDataString = localStorage.getItem('userData')
+      
+      if (!token) {
+        console.error('No token found in localStorage')
+        return
+      }
+      
+      if (showLoading) setIsRefreshing(true)
+      
+      console.log('Fetching dashboard data...')
+      if (userDataString) {
+        try {
+          const user = JSON.parse(userDataString)
+          console.log('Current user:', { id: user.id, email: user.email, name: user.name })
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
       
       const response = await fetch('/api/user/notifications', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       })
+      
       const data = await response.json()
       
       if (response.ok) {
-        console.log('Loaded notifications:', data.notifications?.length || 0)
-        console.log('Notification data:', data.notifications)
+        console.log('✅ Dashboard data loaded:')
+        console.log('  - Notifications:', data.notifications?.length || 0)
+        console.log('  - Unread:', data.unreadCount || 0)
+        console.log('  - Books Borrowed:', data.booksBorrowed || 0)
+        console.log('  - Overdue Items:', data.overdueItems || 0)
+        console.log('  - Due Soon Items:', data.dueSoonItems || 0)
+        console.log('  - Ready Books:', data.readyBooksCount || 0)
+        console.log('  - Collected Books:', data.collectedBooksCount || 0)
+        console.log('  - Due Soon Books:', data.dueSoonBooks?.length || 0)
+        
         setNotifications(data.notifications || [])
         setDashboardStats({
           booksBorrowed: data.booksBorrowed || 0,
@@ -120,10 +146,33 @@ export default function UserDashboard() {
         })
         setDueSoonBooks(data.dueSoonBooks || [])
       } else {
-        console.error('Failed to load dashboard data:', data)
+        console.error('❌ Failed to load dashboard data:', {
+          status: response.status,
+          error: data.error
+        })
+        setNotifications([])
+        setDashboardStats({
+          booksBorrowed: 0,
+          overdueItems: 0,
+          readyBooks: 0,
+          collectedBooks: 0,
+          unreadNotifications: 0
+        })
+        setDueSoonBooks([])
       }
     } catch (error) {
-      console.error('Failed to load dashboard data:', error)
+      console.error('❌ Exception loading dashboard data:', error)
+      setNotifications([])
+      setDashboardStats({
+        booksBorrowed: 0,
+        overdueItems: 0,
+        readyBooks: 0,
+        collectedBooks: 0,
+        unreadNotifications: 0
+      })
+      setDueSoonBooks([])
+    } finally {
+      if (showLoading) setIsRefreshing(false)
     }
   }
 
