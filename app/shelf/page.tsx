@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Lightbulb, Zap, Wifi, AlertTriangle, CheckCircle, Activity, Calculator, Atom, Globe, Heart, Shield, Wrench, Plus, X, Edit, Trash2, BookPlus } from 'lucide-react'
 import { AdminSidebar } from "@/components/admin-sidebar"
+import { SUBJECTS } from "@/lib/subjects"
 
 export default function ShelfPage() {
   const [subjectData, setSubjectData] = useState([
@@ -99,6 +100,7 @@ export default function ShelfPage() {
   const [currentBookTitle, setCurrentBookTitle] = useState("")
   const [currentBookAuthor, setCurrentBookAuthor] = useState("")
   const [currentBookSubject, setCurrentBookSubject] = useState("")
+  const [currentBookCatalogNo, setCurrentBookCatalogNo] = useState("")
   const [editingBookId, setEditingBookId] = useState<string | null>(null)
 
   // Available books catalog (sample data)
@@ -206,12 +208,14 @@ export default function ShelfPage() {
       id: `book-${Date.now()}`,
       title: currentBookTitle.trim(),
       author: currentBookAuthor.trim(),
-      subject: currentBookSubject.trim()
+      subject: currentBookSubject.trim(),
+      catalog_no: currentBookCatalogNo.trim() || undefined
     }
     setShelves(prev => prev.map(s => s.id === selectedShelfId ? { ...s, books: [...s.books, newBook] } : s))
     setCurrentBookTitle("")
     setCurrentBookAuthor("")
     setCurrentBookSubject("")
+    setCurrentBookCatalogNo("")
   }
 
   const addExistingBookToShelf = (book: { id: string, title: string, author: string, subject: string }) => {
@@ -223,23 +227,31 @@ export default function ShelfPage() {
     setShelves(prev => prev.map(s => s.id === selectedShelfId ? { ...s, books: s.books.filter(b => b.id !== bookId) } : s))
   }
 
-  const startEditBook = (bookId: string, title: string, author: string, subject: string) => {
+  const startEditBook = (bookId: string, title: string, author: string, subject: string, catalogNo?: string) => {
     setEditingBookId(bookId)
     setCurrentBookTitle(title)
     setCurrentBookAuthor(author)
     setCurrentBookSubject(subject)
+    setCurrentBookCatalogNo(catalogNo || "")
   }
 
   const saveEditBook = () => {
     if (!editingBookId) return
     setShelves(prev => prev.map(s => s.id === selectedShelfId ? {
       ...s,
-      books: s.books.map(b => b.id === editingBookId ? { ...b, title: currentBookTitle.trim(), author: currentBookAuthor.trim(), subject: currentBookSubject.trim() } : b)
+      books: s.books.map(b => b.id === editingBookId ? { 
+        ...b, 
+        title: currentBookTitle.trim(), 
+        author: currentBookAuthor.trim(), 
+        subject: currentBookSubject.trim(),
+        catalog_no: currentBookCatalogNo.trim() || undefined
+      } : b)
     } : s))
     setEditingBookId(null)
     setCurrentBookTitle("")
     setCurrentBookAuthor("")
     setCurrentBookSubject("")
+    setCurrentBookCatalogNo("")
   }
 
   const createNewShelf = () => {
@@ -486,7 +498,7 @@ export default function ShelfPage() {
                         <h4 className="font-medium mb-3">Books in {shelves.find(s => s.id === selectedShelfId)?.name}</h4>
                         <div className="space-y-3">
                           {/* Entry / Edit Form */}
-                          <div className="grid grid-cols-3 gap-3">
+                          <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1">
                               <Label htmlFor="book-title">Title</Label>
                               <Input id="book-title" value={currentBookTitle} onChange={(e) => setCurrentBookTitle(e.target.value)} placeholder="Enter book title" />
@@ -497,14 +509,30 @@ export default function ShelfPage() {
                             </div>
                             <div className="space-y-1">
                               <Label htmlFor="book-subject">Subject</Label>
-                              <Input id="book-subject" value={currentBookSubject} onChange={(e) => setCurrentBookSubject(e.target.value)} placeholder="Enter subject" />
+                              <select
+                                id="book-subject"
+                                value={currentBookSubject}
+                                onChange={(e) => setCurrentBookSubject(e.target.value)}
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                              >
+                                <option value="">Select subject</option>
+                                {SUBJECTS.map((subject) => (
+                                  <option key={subject} value={subject}>
+                                    {subject}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="space-y-1">
+                              <Label htmlFor="book-catalog-no">Catalog No.</Label>
+                              <Input id="book-catalog-no" value={currentBookCatalogNo} onChange={(e) => setCurrentBookCatalogNo(e.target.value)} placeholder="Enter catalog number" />
                             </div>
                           </div>
                           <div className="flex gap-2">
                             {editingBookId ? (
                               <>
                                 <Button onClick={saveEditBook}>Save</Button>
-                                <Button variant="outline" onClick={() => { setEditingBookId(null); setCurrentBookTitle(""); setCurrentBookAuthor(""); setCurrentBookSubject("") }}>Cancel</Button>
+                                <Button variant="outline" onClick={() => { setEditingBookId(null); setCurrentBookTitle(""); setCurrentBookAuthor(""); setCurrentBookSubject(""); setCurrentBookCatalogNo("") }}>Cancel</Button>
                               </>
                             ) : (
                               <Button onClick={addBookToShelf} disabled={!currentBookTitle || !currentBookAuthor || !currentBookSubject}>Add Book</Button>
@@ -518,9 +546,12 @@ export default function ShelfPage() {
                                 <div>
                                   <p className="font-medium text-sm">{b.title}</p>
                                   <p className="text-xs text-gray-600">by {b.author} • {b.subject}</p>
+                                  {(b as any).catalog_no && (
+                                    <p className="text-xs text-gray-500">Catalog No: {(b as any).catalog_no}</p>
+                                  )}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <Button size="sm" variant="outline" onClick={() => startEditBook(b.id, b.title, b.author, b.subject)}>
+                                  <Button size="sm" variant="outline" onClick={() => startEditBook(b.id, b.title, b.author, b.subject, (b as any).catalog_no)}>
                                     <Edit className="h-3 w-3 mr-1" /> Edit
                                   </Button>
                                   <Button size="sm" variant="destructive" onClick={() => removeBookFromShelf(b.id)}>

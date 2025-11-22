@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { Users, Plus, Mail, Calendar, BookOpen, AlertCircle, CheckCircle, Clock, RefreshCw, Trash2 } from 'lucide-react'
+import { Users, Plus, Mail, Calendar, BookOpen, AlertCircle, CheckCircle, Clock, RefreshCw, Trash2, X, AlertTriangle } from 'lucide-react'
 import { AdminSidebar } from "@/components/admin-sidebar"
 
 interface User {
@@ -52,6 +52,9 @@ export default function UsersPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isCreating, setIsCreating] = useState(false)
   const [isDeleting, setIsDeleting] = useState<number | null>(null)
+  const [selectedUsers, setSelectedUsers] = useState<Set<number>>(new Set())
+  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false)
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false)
 
   const [newUser, setNewUser] = useState({
     name: "",
@@ -158,6 +161,11 @@ export default function UsersPage() {
 
       if (response.ok) {
         alert('User deleted successfully!')
+        setSelectedUsers(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(userId)
+          return newSet
+        })
         fetchUsers() // Refresh the list
       } else {
         const error = await response.json()
@@ -169,6 +177,120 @@ export default function UsersPage() {
     } finally {
       setIsDeleting(null)
     }
+  }
+
+  const handleToggleSelectUser = (userId: number) => {
+    setSelectedUsers(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(userId)) {
+        newSet.delete(userId)
+      } else {
+        newSet.add(userId)
+      }
+      return newSet
+    })
+  }
+
+  const handleSelectAll = () => {
+    if (selectedUsers.size === users.length) {
+      setSelectedUsers(new Set())
+    } else {
+      setSelectedUsers(new Set(users.map(u => u.id)))
+    }
+  }
+
+  const handleDeleteSelected = async () => {
+    if (selectedUsers.size === 0) {
+      alert('Please select at least one user to delete')
+      return
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete ${selectedUsers.size} user(s)?\n\nThis action cannot be undone and will permanently remove all selected users and their data.`
+    )
+
+    if (!confirmed) return
+
+    setIsBulkDeleting(true)
+    const adminToken = localStorage.getItem('adminToken')
+    const adminUser = localStorage.getItem('adminUser')
+    
+    let successCount = 0
+    let failCount = 0
+
+    for (const userId of selectedUsers) {
+      try {
+        const response = await fetch(`/api/admin/users-simple/${userId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${adminToken}`,
+            'x-admin-user': adminUser || ''
+          }
+        })
+
+        if (response.ok) {
+          successCount++
+        } else {
+          failCount++
+        }
+      } catch (error) {
+        console.error(`Error deleting user ${userId}:`, error)
+        failCount++
+      }
+    }
+
+    alert(`Deleted ${successCount} user(s) successfully${failCount > 0 ? `. ${failCount} failed.` : ''}`)
+    setSelectedUsers(new Set())
+    fetchUsers()
+    setIsBulkDeleting(false)
+  }
+
+  const handleDeleteAll = async () => {
+    const confirmed = window.confirm(
+      `⚠️ WARNING: Are you absolutely sure you want to delete ALL ${users.length} users?\n\nThis action cannot be undone and will permanently remove:\n- All user accounts\n- All borrowing records\n- All notifications\n- All book requests\n\nType "DELETE ALL" to confirm.`
+    )
+
+    if (!confirmed) return
+
+    const userInput = window.prompt('Type "DELETE ALL" to confirm deletion of all users:')
+    if (userInput !== 'DELETE ALL') {
+      alert('Deletion cancelled. You must type "DELETE ALL" exactly to confirm.')
+      return
+    }
+
+    setIsBulkDeleting(true)
+    const adminToken = localStorage.getItem('adminToken')
+    const adminUser = localStorage.getItem('adminUser')
+    
+    let successCount = 0
+    let failCount = 0
+
+    for (const user of users) {
+      try {
+        const response = await fetch(`/api/admin/users-simple/${user.id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${adminToken}`,
+            'x-admin-user': adminUser || ''
+          }
+        })
+
+        if (response.ok) {
+          successCount++
+        } else {
+          failCount++
+        }
+      } catch (error) {
+        console.error(`Error deleting user ${user.id}:`, error)
+        failCount++
+      }
+    }
+
+    alert(`Deleted ${successCount} user(s) successfully${failCount > 0 ? `. ${failCount} failed.` : ''}`)
+    setSelectedUsers(new Set())
+    fetchUsers()
+    setIsBulkDeleting(false)
+    setShowDeleteAllConfirm(false)
   }
 
   const getStatusBadge = (status: string) => {
@@ -208,8 +330,8 @@ export default function UsersPage() {
         <AdminSidebar />
         
         {/* Main Content */}
-        <div className="flex-1">
-          <div className="container mx-auto px-4 py-8">
+        <div className="flex-1 flex">
+          <div className="container mx-auto px-4 py-8 flex-1">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">User Management</h1>
           <p className="text-lg text-gray-600">Manage library members and their borrowing activities</p>
@@ -309,6 +431,14 @@ export default function UsersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">
+                    <input
+                      type="checkbox"
+                      checked={selectedUsers.size === users.length && users.length > 0}
+                      onChange={handleSelectAll}
+                      className="rounded border-gray-300"
+                    />
+                  </TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Membership ID</TableHead>
@@ -325,9 +455,17 @@ export default function UsersPage() {
               <TableBody>
                 {users.map((user) => (
                   <TableRow key={user.id}>
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        checked={selectedUsers.has(user.id)}
+                        onChange={() => handleToggleSelectUser(user.id)}
+                        className="rounded border-gray-300"
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">{user.name}</TableCell>
                     <TableCell>{user.email}</TableCell>
-                    <TableCell>{user.membershipId}</TableCell>
+                    <TableCell>{user.membershipId || 'N/A'}</TableCell>
                     <TableCell>{new Date(user.joinDate).toLocaleDateString()}</TableCell>
                     <TableCell>
                       <Badge variant="outline">{user.borrowedBooks}</Badge>
@@ -366,7 +504,19 @@ export default function UsersPage() {
                     <TableCell>{getEmailVerifiedBadge(user.emailVerified)}</TableCell>
                     <TableCell>{getStatusBadge(user.status)}</TableCell>
                     <TableCell>
-                      {/* Actions hidden per request */}
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleDeleteUser(user.id, user.name)}
+                        disabled={isDeleting === user.id || isBulkDeleting}
+                      >
+                        {isDeleting === user.id ? (
+                          <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3 w-3 mr-1" />
+                        )}
+                        Delete
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -375,8 +525,143 @@ export default function UsersPage() {
           </CardContent>
         </Card>
           </div>
+
+          {/* Delete Shortcuts Sidebar */}
+          <div className="w-80 bg-white shadow-lg border-l border-gray-200 p-6">
+            <div className="sticky top-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <Trash2 className="h-5 w-5 text-red-600" />
+                Delete Shortcuts
+              </h2>
+              
+              <div className="space-y-3">
+                {/* Selected Users Info */}
+                {selectedUsers.size > 0 && (
+                  <Card className="bg-blue-50 border-blue-200">
+                    <CardContent className="p-4">
+                      <p className="text-sm font-medium text-blue-900">
+                        {selectedUsers.size} user{selectedUsers.size > 1 ? 's' : ''} selected
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="w-full mt-2"
+                        onClick={handleDeleteSelected}
+                        disabled={isBulkDeleting}
+                      >
+                        {isBulkDeleting ? (
+                          <>
+                            <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                            Deleting...
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="h-3 w-3 mr-1" />
+                            Delete Selected ({selectedUsers.size})
+                          </>
+                        )}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Delete All Users */}
+                <Card className="border-red-200">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold text-red-900 flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4" />
+                      Dangerous Actions
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <Button
+                      variant="destructive"
+                      className="w-full"
+                      onClick={() => setShowDeleteAllConfirm(true)}
+                      disabled={isBulkDeleting || users.length === 0}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete All Users
+                    </Button>
+                    <p className="text-xs text-gray-500">
+                      This will permanently delete all {users.length} users and their data. Cannot be undone.
+                    </p>
+                  </CardContent>
+                </Card>
+
+                {/* Quick Stats */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold">Quick Stats</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Total Users:</span>
+                      <span className="font-semibold">{users.length}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Selected:</span>
+                      <span className="font-semibold">{selectedUsers.size}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Active:</span>
+                      <span className="font-semibold text-green-600">{stats.activeMembers}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* Delete All Confirmation Dialog */}
+      <Dialog open={showDeleteAllConfirm} onOpenChange={setShowDeleteAllConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+              Delete All Users
+            </DialogTitle>
+            <DialogDescription>
+              This will permanently delete ALL {users.length} users and their data. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-gray-600 mb-4">
+              The following will be deleted:
+            </p>
+            <ul className="list-disc list-inside text-sm text-gray-600 space-y-1 mb-4">
+              <li>All user accounts ({users.length} users)</li>
+              <li>All borrowing records</li>
+              <li>All notifications</li>
+              <li>All book requests</li>
+              <li>All email verifications</li>
+            </ul>
+            <p className="text-sm font-semibold text-red-600">
+              ⚠️ This action is irreversible!
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteAllConfirm(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteAll} disabled={isBulkDeleting}>
+              {isBulkDeleting ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete All Users
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -21,80 +21,10 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // For demo purposes, if no books exist, return sample books
-    if (!books || books.length === 0) {
-      const sampleBooks = [
-        {
-          id: 1,
-          title: "Advanced Mathematics",
-          author: "Dr. Smith",
-          subject: "Mathematics",
-          isbn: "978-1234567890",
-          available: true,
-          quantity: 3,
-          created_at: new Date().toISOString()
-        },
-        {
-          id: 2,
-          title: "Physics Principles",
-          author: "Prof. Johnson",
-          subject: "Science",
-          isbn: "978-1234567891",
-          available: true,
-          quantity: 2,
-          created_at: new Date().toISOString()
-        },
-        {
-          id: 3,
-          title: "World History",
-          author: "Dr. Brown",
-          subject: "Social Studies",
-          isbn: "978-1234567892",
-          available: true,
-          quantity: 4,
-          created_at: new Date().toISOString()
-        },
-        {
-          id: 4,
-          title: "Chemistry Basics",
-          author: "Prof. Davis",
-          subject: "Science",
-          isbn: "978-1234567893",
-          available: false,
-          quantity: 0,
-          created_at: new Date().toISOString()
-        },
-        {
-          id: 5,
-          title: "Health & Fitness",
-          author: "Dr. Wilson",
-          subject: "PEHM",
-          isbn: "978-1234567894",
-          available: true,
-          quantity: 2,
-          created_at: new Date().toISOString()
-        },
-        {
-          id: 6,
-          title: "Moral Values",
-          author: "Prof. Taylor",
-          subject: "Values Education",
-          isbn: "978-1234567895",
-          available: true,
-          quantity: 3,
-          created_at: new Date().toISOString()
-        }
-      ]
-
-      return NextResponse.json({
-        success: true,
-        books: sampleBooks
-      })
-    }
-
+    // Return books from database (no hardcoded sample data)
     return NextResponse.json({
       success: true,
-      books: books
+      books: books || []
     })
 
   } catch (error) {

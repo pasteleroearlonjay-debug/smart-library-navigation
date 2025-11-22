@@ -122,7 +122,7 @@ export default function BooksPage() {
     }
   }
 
-  const subjects = ["all", "Mathematics", "Science", "Social Studies", "PEHM", "Values Education", "TLE"]
+  const subjects = ["all", "Mathematics", "Science", "Social Studies", "PEHM", "Values Education", "TLE", "Thesis", "Fiction", "Medicine", "Agriculture", "Computer Studies", "Comics"]
 
   if (isLoading) {
     return (
@@ -195,8 +195,13 @@ export default function BooksPage() {
                       <User className="h-3 w-3" />
                       by {book.author}
                     </CardDescription>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <Badge variant="outline">{book.subject}</Badge>
+                      {book.catalog_no && (
+                        <Badge variant="secondary" className="text-xs">
+                          Catalog: {book.catalog_no}
+                        </Badge>
+                      )}
                       {book.isbn && (
                         <Badge variant="secondary" className="text-xs">
                           ISBN: {book.isbn}

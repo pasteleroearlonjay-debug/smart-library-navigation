@@ -138,20 +138,6 @@ export default function LoginPage() {
                 )}
               </Button>
             </form>
-
-            {/* Default Credentials Info */}
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
-              <p className="text-xs font-semibold text-blue-900 mb-2">
-                Default Credentials:
-              </p>
-              <div className="text-xs text-blue-700 space-y-1">
-                <p>Username: <span className="font-mono font-semibold">admin</span></p>
-                <p>Password: <span className="font-mono font-semibold">admin123</span></p>
-              </div>
-              <p className="text-xs text-blue-600 mt-2 italic">
-                Please change the default password after first login
-              </p>
-            </div>
           </CardContent>
         </Card>
 

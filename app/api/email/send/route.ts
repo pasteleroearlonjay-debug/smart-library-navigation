@@ -12,7 +12,7 @@ const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587')
 const SMTP_USER = process.env.SMTP_USER || ''
 const SMTP_PASS = process.env.SMTP_PASS || ''
 const FROM_EMAIL = process.env.FROM_EMAIL || 'library@yourschool.com'
-const FROM_NAME = process.env.FROM_NAME || 'Smart Library System'
+const FROM_NAME = process.env.FROM_NAME || 'PSAU Library'
 
 // Resend API key (if using Resend service)
 const RESEND_API_KEY = process.env.RESEND_API_KEY || ''
@@ -94,7 +94,7 @@ async function sendWithResend(to: string, subject: string, message: string): Pro
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; text-align: center;">
-              <h1 style="color: white; margin: 0;">Smart Library System</h1>
+              <h1 style="color: white; margin: 0;">PSAU Library</h1>
             </div>
             <div style="padding: 30px; background: #f8f9fa;">
               <h2 style="color: #333; margin-bottom: 20px;">${subject}</h2>
@@ -102,11 +102,11 @@ async function sendWithResend(to: string, subject: string, message: string): Pro
                 ${message.replace(/\n/g, '<br>')}
               </div>
               <p style="color: #666; font-size: 14px; margin-top: 20px;">
-                This is an automated message from the Smart Library System. Please do not reply to this email.
+                This is an automated message from the PSAU Library. Please do not reply to this email.
               </p>
             </div>
             <div style="background: #343a40; padding: 15px; text-align: center; color: white; font-size: 12px;">
-              © 2024 Smart Library System. All rights reserved.
+              © 2024 PSAU Library. All rights reserved.
             </div>
           </div>
         `
@@ -158,7 +158,7 @@ async function sendWithSendGrid(to: string, subject: string, message: string): P
             value: `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                 <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; text-align: center;">
-                  <h1 style="color: white; margin: 0;">Smart Library System</h1>
+                  <h1 style="color: white; margin: 0;">PSAU Library</h1>
                 </div>
                 <div style="padding: 30px; background: #f8f9fa;">
                   <h2 style="color: #333; margin-bottom: 20px;">${subject}</h2>
@@ -166,11 +166,11 @@ async function sendWithSendGrid(to: string, subject: string, message: string): P
                     ${message.replace(/\n/g, '<br>')}
                   </div>
                   <p style="color: #666; font-size: 14px; margin-top: 20px;">
-                    This is an automated message from the Smart Library System. Please do not reply to this email.
+                    This is an automated message from the PSAU Library. Please do not reply to this email.
                   </p>
                 </div>
                 <div style="background: #343a40; padding: 15px; text-align: center; color: white; font-size: 12px;">
-                  © 2024 Smart Library System. All rights reserved.
+                  © 2024 PSAU Library. All rights reserved.
                 </div>
               </div>
             `

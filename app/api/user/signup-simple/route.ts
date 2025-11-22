@@ -27,10 +27,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Basic email validation (Supabase will do more thorough validation)
+    // Basic email validation
     if (!email.includes('@') || !email.includes('.')) {
       return NextResponse.json(
         { error: 'Please enter a valid email address' },
+        { status: 400 }
+      )
+    }
+
+    // Validate PSAU iskwela account requirement - ONLY @iskwela.psau.edu.ph allowed
+    const allowedDomains = process.env.ALLOWED_EMAIL_DOMAINS?.split(',').map(d => d.trim()) || ['@iskwela.psau.edu.ph']
+    const isAllowedDomain = allowedDomains.some(domain => email.toLowerCase().endsWith(domain.toLowerCase()))
+    
+    if (!isAllowedDomain) {
+      return NextResponse.json(
+        { error: 'iskwela account is required' },
         { status: 400 }
       )
     }

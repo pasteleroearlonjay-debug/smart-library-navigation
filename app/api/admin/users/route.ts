@@ -106,6 +106,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { error: 'Please enter a valid email address' },
+        { status: 400 }
+      )
+    }
+
+    // Validate PSAU iskwela account requirement - ONLY @iskwela.psau.edu.ph allowed
+    const allowedDomains = process.env.ALLOWED_EMAIL_DOMAINS?.split(',').map(d => d.trim()) || ['@iskwela.psau.edu.ph']
+    const isAllowedDomain = allowedDomains.some(domain => email.toLowerCase().endsWith(domain.toLowerCase()))
+    
+    if (!isAllowedDomain) {
+      return NextResponse.json(
+        { error: 'iskwela account is required' },
+        { status: 400 }
+      )
+    }
+
     // Generate a temporary password (user will need to reset it)
     const tempPassword = 'TempPass123!'
     const bcrypt = require('bcryptjs')

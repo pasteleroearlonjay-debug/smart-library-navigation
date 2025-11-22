@@ -16,6 +16,8 @@ export default function WelcomePage() {
   const [showSignupPassword, setShowSignupPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const [emailError, setEmailError] = useState("")
+  const [emailTouched, setEmailTouched] = useState(false)
 
   // User login state
   const [userLogin, setUserLogin] = useState({
@@ -64,9 +66,34 @@ export default function WelcomePage() {
     }
   }
 
+  // Validate email for iskwela account
+  const validateEmail = (email: string) => {
+    if (!email) {
+      setEmailError("")
+      return true
+    }
+    
+    const isIskwelaEmail = email.toLowerCase().endsWith('@iskwela.psau.edu.ph')
+    
+    if (!isIskwelaEmail) {
+      setEmailError("Only PSAU iskwela accounts (@iskwela.psau.edu.ph) are allowed")
+      return false
+    }
+    
+    setEmailError("")
+    return true
+  }
+
   const handleUserSignup = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    
+    // Validate email before submission
+    if (!validateEmail(userSignup.email)) {
+      setEmailTouched(true)
+      setError("Please use your PSAU iskwela account email")
+      return
+    }
 
     if (userSignup.password !== userSignup.confirmPassword) {
       setError("Passwords do not match")
@@ -228,6 +255,17 @@ export default function WelcomePage() {
                   </div>
                 ) : showSignup ? (
                   <form onSubmit={handleUserSignup} className="space-y-4">
+                    {/* Email Requirement Reminder Banner */}
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2">
+                      <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-blue-900">Iskwela Account Required</p>
+                        <p className="text-xs text-blue-700 mt-1">
+                          You must use your PSAU iskwela account email (@iskwela.psau.edu.ph) to create an account. Personal Gmail or other email addresses are not accepted.
+                        </p>
+                      </div>
+                    </div>
+
                     {error && (
                       <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center gap-2">
                         <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
@@ -254,17 +292,43 @@ export default function WelcomePage() {
                     <div className="space-y-2">
                       <Label htmlFor="signup-email" className="flex items-center gap-2">
                         <Mail className="h-4 w-4" />
-                        Email Address
+                        Iskwela Account Email
+                        <span className="text-red-500">*</span>
                       </Label>
                       <Input
                         id="signup-email"
                         type="email"
-                        placeholder="Enter your email"
+                        placeholder="yourname@iskwela.psau.edu.ph"
                         value={userSignup.email}
-                        onChange={(e) => setUserSignup({...userSignup, email: e.target.value})}
+                        onChange={(e) => {
+                          const newEmail = e.target.value
+                          setUserSignup({...userSignup, email: newEmail})
+                          if (emailTouched) {
+                            validateEmail(newEmail)
+                          }
+                        }}
+                        onBlur={() => {
+                          setEmailTouched(true)
+                          validateEmail(userSignup.email)
+                        }}
                         required
-                        className="h-11"
+                        className={`h-11 ${emailError && emailTouched ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
                       />
+                      
+                      {/* Helper text / Reminder */}
+                      <div className="space-y-1">
+                        {emailError && emailTouched ? (
+                          <p className="text-sm text-red-600 flex items-center gap-1">
+                            <AlertCircle className="h-3 w-3" />
+                            {emailError}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-gray-500 flex items-center gap-1">
+                            <Mail className="h-3 w-3" />
+                            Only PSAU iskwela email accounts are accepted (e.g., yourname@iskwela.psau.edu.ph)
+                          </p>
+                        )}
+                      </div>
                     </div>
 
                     <div className="space-y-2">

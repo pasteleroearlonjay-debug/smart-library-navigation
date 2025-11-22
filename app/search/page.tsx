@@ -178,9 +178,12 @@ export default function SearchPage() {
                         <div className="flex-1">
                           <h3 className="font-semibold text-lg">{book.title}</h3>
                           <p className="text-gray-600">by {book.author}</p>
-                          <div className="flex items-center gap-2 mt-2">
+                          <div className="flex items-center gap-2 mt-2 flex-wrap">
                             <MapPin className="h-4 w-4 text-gray-500" />
                             <span className="text-sm font-medium">Subject: {book.subject}</span>
+                            {book.catalog_no && (
+                              <span className="text-xs text-gray-500">Catalog: {book.catalog_no}</span>
+                            )}
                             <Badge variant={book.available ? "default" : "destructive"}>
                               {book.available ? "Available" : "Borrowed"}
                             </Badge>

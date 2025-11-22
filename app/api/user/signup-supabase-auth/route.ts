@@ -41,6 +41,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Validate PSAU iskwela account requirement - ONLY @iskwela.psau.edu.ph allowed
+    const allowedDomains = process.env.ALLOWED_EMAIL_DOMAINS?.split(',').map(d => d.trim()) || ['@iskwela.psau.edu.ph']
+    const isAllowedDomain = allowedDomains.some(domain => email.toLowerCase().endsWith(domain.toLowerCase()))
+    
+    if (!isAllowedDomain) {
+      return NextResponse.json(
+        { error: 'iskwela account is required' },
+        { status: 400 }
+      )
+    }
+
     // Validate password strength
     if (password.length < 6) {
       return NextResponse.json(

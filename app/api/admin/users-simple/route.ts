@@ -92,6 +92,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Name and email are required' }, { status: 400 })
     }
 
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { error: 'Please enter a valid email address' },
+        { status: 400 }
+      )
+    }
+
+    // Validate PSAU iskwela account requirement - ONLY @iskwela.psau.edu.ph allowed
+    const allowedDomains = process.env.ALLOWED_EMAIL_DOMAINS?.split(',').map(d => d.trim()) || ['@iskwela.psau.edu.ph']
+    const isAllowedDomain = allowedDomains.some(domain => email.toLowerCase().endsWith(domain.toLowerCase()))
+    
+    if (!isAllowedDomain) {
+      return NextResponse.json(
+        { error: 'iskwela account is required' },
+        { status: 400 }
+      )
+    }
+
     // Generate membership ID if not provided
     const finalMembershipId = membershipId || `LIB${String(Date.now()).slice(-6)}`
 
