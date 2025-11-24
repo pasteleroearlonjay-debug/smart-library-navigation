@@ -24,6 +24,7 @@ export function Navigation() {
   const [adminUser, setAdminUser] = useState<any>(null)
   const [userData, setUserData] = useState<any>(null)
   const [userType, setUserType] = useState<'admin' | 'user' | null>(null)
+  const [logo, setLogo] = useState<string | null>(null)
 
   useEffect(() => {
     const admin = localStorage.getItem('adminUser')
@@ -36,6 +37,18 @@ export function Navigation() {
       setUserData(JSON.parse(user))
       setUserType('user')
     }
+
+    // Fetch logo from settings
+    fetch('/api/settings?key=logo')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.value) {
+          setLogo(data.value)
+        }
+      })
+      .catch(err => {
+        console.error('Error fetching logo:', err)
+      })
   }, [])
 
   const handleLogout = async () => {
@@ -103,7 +116,15 @@ export function Navigation() {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center space-x-2">
-            <BookOpen className="h-8 w-8 text-blue-600" />
+            {logo ? (
+              <img 
+                src={logo} 
+                alt="PSAU Logo" 
+                className="h-8 w-8 object-contain"
+              />
+            ) : (
+              <BookOpen className="h-8 w-8 text-blue-600" />
+            )}
             <span className="text-xl font-bold text-gray-900">PSAU Library System</span>
           </div>
           <div className="hidden md:flex items-center space-x-8">

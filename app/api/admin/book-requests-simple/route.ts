@@ -143,10 +143,92 @@ export async function PUT(request: NextRequest) {
       )
     }
 
+    // Get the request details first
+    const { data: requestData, error: fetchError } = await supabase
+      .from('book_requests')
+      .select('*')
+      .eq('id', requestId)
+      .single()
+
+    if (fetchError || !requestData) {
+      console.log('Fetch error:', fetchError?.message)
+      return NextResponse.json(
+        { error: 'Request not found' },
+        { status: 404 }
+      )
+    }
+
+    // Check if request is already processed
+    if (requestData.status !== 'pending') {
+      return NextResponse.json(
+        { error: 'Request has already been processed' },
+        { status: 400 }
+      )
+    }
+
+    const newStatus = action === 'approve' ? 'approved' : 'declined'
+
+    // If approving, update book quantity
+    if (action === 'approve') {
+      // Check if book has available quantity
+      const { data: book, error: bookError } = await supabase
+        .from('books')
+        .select('id, quantity, available')
+        .eq('id', requestData.book_id)
+        .single()
+
+      if (bookError || !book) {
+        return NextResponse.json(
+          { error: 'Book not found' },
+          { status: 404 }
+        )
+      }
+
+      // Check if book is available and has quantity > 0
+      const currentQuantity = book.quantity || 0
+      if (currentQuantity <= 0 || !book.available) {
+        return NextResponse.json(
+          { error: 'Book is not available for borrowing (no copies available)' },
+          { status: 400 }
+        )
+      }
+
+      // Update book quantity and availability
+      const newQuantity = currentQuantity - 1
+      const { error: bookUpdateError } = await supabase
+        .from('books')
+        .update({
+          quantity: newQuantity,
+          available: newQuantity > 0
+        })
+        .eq('id', requestData.book_id)
+
+      if (bookUpdateError) {
+        console.log('Error updating book quantity:', bookUpdateError.message)
+        return NextResponse.json(
+          { error: 'Failed to update book quantity: ' + bookUpdateError.message },
+          { status: 500 }
+        )
+      }
+
+      // Create borrowing record (if table exists)
+      try {
+        await supabase
+          .from('borrowing_records')
+          .insert({
+            member_id: requestData.member_id,
+            book_id: requestData.book_id,
+            borrowed_date: new Date().toISOString().split('T')[0],
+            due_date: requestData.due_date,
+            status: 'borrowed'
+          })
+      } catch (borrowingError) {
+        console.log('Note: Could not create borrowing record (table might not exist)')
+      }
+    }
+
     // Try to update the request
     try {
-      const newStatus = action === 'approve' ? 'approved' : 'declined'
-      
       const { data: updatedRequest, error } = await supabase
         .from('book_requests')
         .update({ 
