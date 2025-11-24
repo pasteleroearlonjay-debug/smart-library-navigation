@@ -62,6 +62,33 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
+    // Check if bucket exists, create if it doesn't
+    const { data: buckets, error: listError } = await supabase.storage.listBuckets()
+    
+    if (!listError) {
+      const bucketExists = buckets?.some(bucket => bucket.name === 'book-covers')
+      
+      if (!bucketExists) {
+        // Try to create the bucket
+        const { error: createError } = await supabase.storage.createBucket('book-covers', {
+          public: true,
+          fileSizeLimit: 10485760, // 10MB
+          allowedMimeTypes: ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
+        })
+        
+        if (createError) {
+          console.error('Error creating bucket:', createError)
+          return NextResponse.json(
+            { 
+              error: 'Storage bucket "book-covers" does not exist and could not be created. Please create it in your Supabase dashboard: Storage > New bucket > Name: "book-covers" > Public: Yes',
+              details: createError.message
+            },
+            { status: 500 }
+          )
+        }
+      }
+    }
+
     // Upload to Supabase Storage
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('book-covers')
@@ -72,6 +99,18 @@ export async function POST(request: NextRequest) {
 
     if (uploadError) {
       console.error('Error uploading file:', uploadError)
+      
+      // Provide helpful error message for bucket not found
+      if (uploadError.message?.includes('Bucket not found') || uploadError.message?.includes('bucket')) {
+        return NextResponse.json(
+          { 
+            error: 'Storage bucket "book-covers" not found. Please create it in Supabase: Storage > New bucket > Name: "book-covers" > Public: Yes',
+            details: uploadError.message
+          },
+          { status: 500 }
+        )
+      }
+      
       return NextResponse.json(
         { error: 'Failed to upload file: ' + uploadError.message },
         { status: 500 }
