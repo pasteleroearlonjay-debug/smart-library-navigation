@@ -62,14 +62,14 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
-    // Check if bucket exists, create if it doesn't
+    // Check if bucket exists
     const { data: buckets, error: listError } = await supabase.storage.listBuckets()
     
-    if (!listError) {
-      const bucketExists = buckets?.some(bucket => bucket.name === 'book-covers')
+    if (!listError && buckets) {
+      const bucketExists = buckets.some(bucket => bucket.name === 'book-covers')
       
       if (!bucketExists) {
-        // Try to create the bucket
+        // Try to create the bucket (may fail if using anon key - that's okay)
         const { error: createError } = await supabase.storage.createBucket('book-covers', {
           public: true,
           fileSizeLimit: 10485760, // 10MB
@@ -77,11 +77,13 @@ export async function POST(request: NextRequest) {
         })
         
         if (createError) {
-          console.error('Error creating bucket:', createError)
+          console.error('Bucket does not exist and cannot be created via API:', createError)
+          // Return a clear error message with instructions
           return NextResponse.json(
             { 
-              error: 'Storage bucket "book-covers" does not exist and could not be created. Please create it in your Supabase dashboard: Storage > New bucket > Name: "book-covers" > Public: Yes',
-              details: createError.message
+              error: 'Storage bucket "book-covers" does not exist. Please run the SQL script in database_migrations/create_book_covers_storage_bucket.sql in your Supabase SQL Editor to create it.',
+              details: createError.message,
+              sqlFile: 'database_migrations/create_book_covers_storage_bucket.sql'
             },
             { status: 500 }
           )

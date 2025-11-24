@@ -317,13 +317,16 @@ export default function ShelfPage() {
       const adminToken = localStorage.getItem('adminToken')
       const adminUser = localStorage.getItem('adminUser')
 
-      // Upload cover photo if provided
+      // Upload cover photo if provided (optional - continue even if upload fails)
       let coverPhotoUrl = currentBookCoverUrl
       if (currentBookCover) {
-        coverPhotoUrl = await uploadCoverPhoto(currentBookCover)
-        if (!coverPhotoUrl) {
-          setIsLoading(false)
-          return // Stop if upload failed
+        const uploadedUrl = await uploadCoverPhoto(currentBookCover)
+        if (uploadedUrl) {
+          coverPhotoUrl = uploadedUrl
+        } else {
+          // Upload failed, but continue without cover photo
+          console.warn('Cover photo upload failed, continuing without cover photo')
+          // Don't return - allow book creation to continue
         }
       }
 
@@ -456,13 +459,16 @@ export default function ShelfPage() {
         return
       }
 
-      // Upload new cover photo if provided
+      // Upload new cover photo if provided (optional - continue even if upload fails)
       let coverPhotoUrl = currentBookCoverUrl
       if (currentBookCover) {
-        coverPhotoUrl = await uploadCoverPhoto(currentBookCover, book.id)
-        if (!coverPhotoUrl && currentBookCover) {
-          setIsLoading(false)
-          return // Stop if upload failed
+        const uploadedUrl = await uploadCoverPhoto(currentBookCover, book.id)
+        if (uploadedUrl) {
+          coverPhotoUrl = uploadedUrl
+        } else {
+          // Upload failed, but continue without cover photo
+          console.warn('Cover photo upload failed, continuing without cover photo')
+          // Don't return - allow book update to continue
         }
       }
 
