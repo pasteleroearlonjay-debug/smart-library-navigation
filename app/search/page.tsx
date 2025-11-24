@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,6 +12,8 @@ export default function SearchPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedSubject, setSelectedSubject] = useState<string | null>(null)
   const [searchResults, setSearchResults] = useState<any[]>([])
+  const [allBooks, setAllBooks] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(false)
 
   // Subject mapping with icons only (hide LED pin/power/online details)
   const subjects = {
@@ -23,47 +25,41 @@ export default function SearchPage() {
     "TLE": { icon: Wrench, color: "bg-orange-500", books: 3 },
   }
 
-  // Sample books database with subject mapping
-  const books = [
-    // Mathematics books
-    { id: 1, title: "Algebra Fundamentals", author: "John Smith", subject: "Mathematics", available: true },
-    { id: 2, title: "Calculus Made Easy", author: "Mary Johnson", subject: "Mathematics", available: true },
-    { id: 3, title: "Geometry Basics", author: "David Wilson", subject: "Mathematics", available: false },
-    
-    // Science books
-    { id: 4, title: "Physics Principles", author: "Sarah Brown", subject: "Science", available: true },
-    { id: 5, title: "Chemistry Basics", author: "Michael Davis", subject: "Science", available: true },
-    { id: 6, title: "Biology Essentials", author: "Lisa Garcia", subject: "Science", available: true },
-    
-    // Social Studies books
-    { id: 7, title: "World History", author: "Robert Martinez", subject: "Social Studies", available: true },
-    { id: 8, title: "Philippine History", author: "Ana Rodriguez", subject: "Social Studies", available: true },
-    { id: 9, title: "Geography Today", author: "Carlos Lopez", subject: "Social Studies", available: false },
-    
-    // PEHM books
-    { id: 10, title: "Physical Education Guide", author: "Maria Santos", subject: "PEHM", available: true },
-    { id: 11, title: "Health and Wellness", author: "Jose Cruz", subject: "PEHM", available: true },
-    { id: 12, title: "Music Appreciation", author: "Carmen Reyes", subject: "PEHM", available: true },
-    
-    // Values Education books
-    { id: 13, title: "Moral Values", author: "Pedro Torres", subject: "Values Education", available: true },
-    { id: 14, title: "Character Building", author: "Rosa Mendoza", subject: "Values Education", available: true },
-    { id: 15, title: "Ethics and Society", author: "Manuel Flores", subject: "Values Education", available: false },
-    
-    // TLE books
-    { id: 16, title: "Computer Programming", author: "Luz Gonzales", subject: "TLE", available: true },
-    { id: 17, title: "Cooking Basics", author: "Antonio Rivera", subject: "TLE", available: true },
-    { id: 18, title: "Electrical Wiring", author: "Elena Morales", subject: "TLE", available: true },
-  ]
+  // Fetch all books from database on component mount
+  useEffect(() => {
+    fetchAllBooks()
+  }, [])
+
+  const fetchAllBooks = async () => {
+    try {
+      setIsLoading(true)
+      const response = await fetch('/api/books')
+      const data = await response.json()
+      
+      if (response.ok && data.books) {
+        setAllBooks(data.books)
+      } else {
+        console.error('Failed to fetch books:', data.error)
+      }
+    } catch (error) {
+      console.error('Error fetching books:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handleSearch = () => {
-    if (!searchQuery.trim()) return
+    if (!searchQuery.trim()) {
+      setSearchResults([])
+      return
+    }
 
-    const results = books.filter(
+    // Search through all books from database
+    const results = allBooks.filter(
       (book) =>
-        book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        book.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        book.subject.toLowerCase().includes(searchQuery.toLowerCase()),
+        book.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        book.author?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        book.subject?.toLowerCase().includes(searchQuery.toLowerCase()),
     )
     setSearchResults(results)
   }
@@ -128,7 +124,7 @@ export default function SearchPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="container mx-auto px-4 py-8">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Smart Search & LED Lighting</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">PSAU Library Search & LED Lighting</h1>
           <p className="text-lg text-gray-600">Find books and illuminate their subject area with ESP32 LEDs</p>
         </div>
 
