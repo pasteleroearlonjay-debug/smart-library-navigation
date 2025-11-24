@@ -13,6 +13,7 @@ const adminNavigation = [
 ]
 
 const userNavigation = [
+  { name: "User Dashboard", href: "/user-dashboard", icon: Home },
   { name: "Search & Light", href: "/search", icon: Search },
   { name: "Notifications", href: "/user-notifications", icon: Mail },
 ]
@@ -103,7 +104,7 @@ export function Navigation() {
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center space-x-2">
             <BookOpen className="h-8 w-8 text-blue-600" />
-            <span className="text-xl font-bold text-gray-900">Smart Library</span>
+            <span className="text-xl font-bold text-gray-900">PSAU Library System</span>
           </div>
           <div className="hidden md:flex items-center space-x-8">
             {(userType === 'admin' ? adminNavigation : userNavigation).map((item) => {

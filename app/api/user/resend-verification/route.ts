@@ -102,10 +102,10 @@ export async function POST(request: NextRequest) {
         },
         body: JSON.stringify({
           to: email,
-          subject: '📧 Verify Your Smart Library Account (Resent)',
+          subject: '📧 Verify Your PSAU Library System Account (Resent)',
           message: `Hello ${user.name}!
 
-You requested a new verification email for your Smart Library account.
+You requested a new verification email for your PSAU Library System account.
 
 To complete your account setup, please verify your email address by clicking the link below:
 
@@ -116,7 +116,7 @@ This link will expire in 24 hours for security reasons.
 If you didn't request this email, please ignore it.
 
 Best regards,
-Smart Library System Team
+PSAU Library System Team
 
 ---
 This is an automated message. Please do not reply to this email.`,

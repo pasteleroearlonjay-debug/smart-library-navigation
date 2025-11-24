@@ -73,7 +73,7 @@ export default function LoginPage() {
             </div>
           </div>
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Smart Library System
+            PSAU Library System
           </h1>
           <p className="text-lg text-gray-600">
             ESP32-Enabled LED Lighting System
@@ -157,7 +157,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <div className="mt-6 text-center text-sm text-gray-600">
-          <p>© 2024 Smart Library System. All rights reserved.</p>
+          <p>© 2024 PSAU Library System. All rights reserved.</p>
         </div>
       </div>
     </div>

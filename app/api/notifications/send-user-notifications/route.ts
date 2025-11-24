@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
               `${notification.message}\n\n` +
               `Please visit the library to collect your book.\n\n` +
               `Thank you!\n\n` +
-              `Smart Library System`
+              `PSAU Library System`
             break
 
           case 'deadline_reminder':
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
               `${notification.message}\n\n` +
               `Please return or renew your book before the due date.\n\n` +
               `Thank you!\n\n` +
-              `Smart Library System`
+              `PSAU Library System`
             break
 
           case 'overdue_notice':
@@ -90,15 +90,15 @@ export async function POST(request: NextRequest) {
               `${notification.message}\n\n` +
               `Please return this book to the library as soon as possible to avoid any penalties.\n\n` +
               `Thank you for your cooperation.\n\n` +
-              `Smart Library System`
+              `PSAU Library System`
             break
 
           case 'welcome':
-            subject = notification.title || 'Welcome to Smart Library System'
+            subject = notification.title || 'Welcome to PSAU Library System'
             emailMessage = `Dear ${member.name},\n\n` +
               `${notification.message}\n\n` +
               `We're excited to have you as a member!\n\n` +
-              `Smart Library System`
+              `PSAU Library System`
             break
 
           case 'book_approved':
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
             emailMessage = `Dear ${member.name},\n\n` +
               `${notification.message}\n\n` +
               `Enjoy your reading!\n\n` +
-              `Smart Library System`
+              `PSAU Library System`
             break
 
           case 'book_declined':
@@ -114,28 +114,28 @@ export async function POST(request: NextRequest) {
             emailMessage = `Dear ${member.name},\n\n` +
               `${notification.message}\n\n` +
               `Please contact the librarian if you have any questions.\n\n` +
-              `Smart Library System`
+              `PSAU Library System`
             break
 
           case 'book_received':
             subject = notification.title || 'Book Pickup Confirmed'
             emailMessage = `Dear ${member.name},\n\n` +
               `${notification.message}\n\n` +
-              `Thank you for using Smart Library System!`
+              `Thank you for using PSAU Library System!`
             break
 
           case 'email_verification':
             subject = notification.title || 'Email Verification'
             emailMessage = `Dear ${member.name},\n\n` +
               `${notification.message}\n\n` +
-              `Smart Library System`
+              `PSAU Library System`
             break
 
           default:
             subject = notification.title || 'Library Notification'
             emailMessage = `Dear ${member.name},\n\n` +
               `${notification.message}\n\n` +
-              `Smart Library System`
+              `PSAU Library System`
         }
 
         // Send email via email API

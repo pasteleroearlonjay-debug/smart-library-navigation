@@ -222,7 +222,7 @@ async function sendWithNodemailer(to: string, subject: string, message: string):
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; text-align: center;">
-          <h1 style="color: white; margin: 0;">Smart Library System</h1>
+          <h1 style="color: white; margin: 0;">PSAU Library System</h1>
         </div>
         <div style="padding: 30px; background: #f8f9fa;">
           <h2 style="color: #333; margin-bottom: 20px;">${subject}</h2>
@@ -230,11 +230,11 @@ async function sendWithNodemailer(to: string, subject: string, message: string):
             ${message.replace(/\n/g, '<br>')}
           </div>
           <p style="color: #666; font-size: 14px; margin-top: 20px;">
-            This is an automated message from the Smart Library System. Please do not reply to this email.
+            This is an automated message from the PSAU Library System. Please do not reply to this email.
           </p>
         </div>
         <div style="background: #343a40; padding: 15px; text-align: center; color: white; font-size: 12px;">
-          © 2024 Smart Library System. All rights reserved.
+          © 2024 PSAU Library System. All rights reserved.
         </div>
       </div>
     `

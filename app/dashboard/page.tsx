@@ -88,7 +88,7 @@ export default function DashboardPage() {
           <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Smart Library System</h1>
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">PSAU Library System</h1>
           <p className="text-lg text-gray-600">ESP32-Enabled LED Lighting for 6 Subject Areas</p>
           {adminUser && (
             <div className="mt-2">

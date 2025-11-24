@@ -6,7 +6,7 @@ import { Navigation } from "@/components/navigation"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Smart Library System",
+  title: "PSAU Library System",
   description: "Automated Lighting & NFC-Enabled Library Management",
     generator: 'v0.app'
 }

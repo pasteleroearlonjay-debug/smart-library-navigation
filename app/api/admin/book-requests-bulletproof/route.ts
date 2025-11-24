@@ -39,7 +39,7 @@ ${message}
 Borrowing period: ${request.requested_days || 'N/A'} day(s).
 
 Happy reading!
-Smart Library System`
+PSAU Library System`
 
       return {
         message,
@@ -60,7 +60,7 @@ Smart Library System`
 ${message}
 
 Thank you for understanding.
-Smart Library System`
+PSAU Library System`
 
       return {
         message,
@@ -83,7 +83,7 @@ Smart Library System`
 
 ${message}
 
-Smart Library System`
+PSAU Library System`
 
       return {
         message,

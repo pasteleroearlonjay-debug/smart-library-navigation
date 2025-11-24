@@ -363,7 +363,7 @@ export default function UserDashboard() {
               </Button>
             </div>
           </div>
-          <p className="text-lg text-gray-600">Welcome to your Smart Library account</p>
+          <p className="text-lg text-gray-600">Welcome to your PSAU Library System account</p>
           {userData && (
             <div className="mt-2">
               <Badge variant="secondary" className="text-sm">

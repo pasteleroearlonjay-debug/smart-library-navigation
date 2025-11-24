@@ -152,10 +152,10 @@ export async function POST(request: NextRequest) {
         },
         body: JSON.stringify({
           to: email,
-          subject: '📧 Verify Your Smart Library Account',
+          subject: '📧 Verify Your PSAU Library System Account',
           message: `Hello ${name}!
 
-Welcome to the Smart Library System! 🎉
+Welcome to the PSAU Library System! 🎉
 
 To complete your account setup, please verify your email address by clicking the link below:
 
@@ -166,7 +166,7 @@ This link will expire in 24 hours for security reasons.
 If you didn't create this account, please ignore this email.
 
 Best regards,
-Smart Library System Team
+PSAU Library System Team
 
 ---
 This is an automated message. Please do not reply to this email.`,
@@ -192,7 +192,7 @@ This is an automated message. Please do not reply to this email.`,
         .insert({
           member_id: newUser.id,
           type: 'welcome',
-          title: 'Welcome to Smart Library',
+          title: 'Welcome to PSAU Library System',
           message: 'Welcome! You can now search for books and get LED guidance to their locations.',
           is_read: false
         })
@@ -204,7 +204,7 @@ This is an automated message. Please do not reply to this email.`,
     try {
       const welcomeEmailMessage = `Hello ${name},
 
-Welcome to Smart Library!
+Welcome to PSAU Library System!
 
 You can now search for books, submit requests, and use LED guidance to find titles quickly.
 
@@ -212,7 +212,7 @@ When you are ready, sign in at ${appUrl} to start exploring the collection.
 
 Happy reading!
 
-Smart Library System`
+PSAU Library System`
 
       const welcomeEmailResponse = await fetch(`${appUrl}/api/email/send`, {
         method: 'POST',
@@ -221,7 +221,7 @@ Smart Library System`
         },
         body: JSON.stringify({
           to: email,
-          subject: 'Welcome to Smart Library',
+          subject: 'Welcome to PSAU Library System',
           message: welcomeEmailMessage,
           type: 'welcome',
           userId: newUser.id

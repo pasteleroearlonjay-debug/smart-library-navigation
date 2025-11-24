@@ -161,7 +161,7 @@ export default function WelcomePage() {
             </div>
           </div>
           <h1 className="text-5xl font-bold text-gray-900 mb-4">
-            Smart Library System
+            PSAU Library System
           </h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             ESP32-Enabled LED Lighting System with Intelligent Book Management
@@ -183,7 +183,7 @@ export default function WelcomePage() {
           <div className="space-y-8">
             <Card className="shadow-xl border-0">
               <CardHeader>
-                <CardTitle className="text-2xl text-center">Welcome to Our Smart Library</CardTitle>
+                <CardTitle className="text-2xl text-center">Welcome to PSAU Library System</CardTitle>
                 <CardDescription className="text-center text-lg">
                   Experience the future of library management with intelligent LED lighting and seamless book discovery.
                 </CardDescription>
@@ -244,7 +244,7 @@ export default function WelcomePage() {
                 </CardTitle>
                 <CardDescription>
                   {showSignup 
-                    ? "Join our smart library community" 
+                    ? "Join our PSAU Library System community" 
                     : "Access your library account"}
                 </CardDescription>
               </CardHeader>
@@ -502,7 +502,7 @@ export default function WelcomePage() {
 
         {/* Footer */}
         <div className="mt-16 text-center text-sm text-gray-600">
-          <p>© 2024 Smart Library System. All rights reserved.</p>
+          <p>© 2024 PSAU Library System. All rights reserved.</p>
         </div>
       </div>
     </div>

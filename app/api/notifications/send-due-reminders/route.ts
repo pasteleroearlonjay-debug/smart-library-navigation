@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
             `Borrowed Date: ${new Date(record.borrowed_date).toLocaleDateString()}\n\n` +
             `Please return this book to the library as soon as possible to avoid any penalties.\n\n` +
             `Thank you for your cooperation.\n\n` +
-            `Smart Library System`
+            `PSAU Library System`
           notificationType = 'overdue_notice'
           notificationMessage = `Your book "${record.book_title || 'Unknown Book'}" is overdue by ${hoursOverdue} hour${hoursOverdue !== 1 ? 's' : ''}. Please return it immediately to avoid penalties.`
         } else {
@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
             `Borrowed Date: ${new Date(record.borrowed_date).toLocaleDateString()}\n\n` +
             `Please return or renew this book before the due date to avoid any late fees.\n\n` +
             `Thank you!\n\n` +
-            `Smart Library System`
+            `PSAU Library System`
           notificationType = 'deadline_reminder'
           notificationMessage = `Your book "${record.book_title || 'Unknown Book'}" is due in ${hoursText} hour${hoursText !== 1 ? 's' : ''} on ${dueDate.toLocaleDateString()}.`
         }
