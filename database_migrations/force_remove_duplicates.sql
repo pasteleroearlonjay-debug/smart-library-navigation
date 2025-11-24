@@ -57,3 +57,4 @@ FROM books;
 SELECT '✅ All duplicate books have been removed!' as message;
 SELECT '📝 Kept the first occurrence (lowest ID) of each duplicate group.' as note;
 
+

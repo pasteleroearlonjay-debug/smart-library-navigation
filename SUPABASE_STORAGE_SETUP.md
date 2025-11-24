@@ -141,3 +141,4 @@ USING (bucket_id = 'book-covers' AND auth.role() = 'authenticated');
 - Maximum file size is 10MB
 - Supported formats: JPG, PNG, WebP, GIF
 
+

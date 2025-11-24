@@ -22,7 +22,6 @@ interface User {
   overdueBooks: number
   activeRequests: number
   readyRequests: number
-  unreadNotifications: number
   status: string
   emailVerified: boolean
   lastLogin: string
@@ -446,7 +445,6 @@ export default function UsersPage() {
                   <TableHead>Borrowed</TableHead>
                   <TableHead>Overdue</TableHead>
                   <TableHead>Requests</TableHead>
-                  <TableHead>Notifications</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -476,28 +474,7 @@ export default function UsersPage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <div className="flex gap-1">
-                        {user.activeRequests > 0 && (
-                          <Badge variant="secondary" className="text-xs">
-                            {user.activeRequests} pending
-                          </Badge>
-                        )}
-                        {user.readyRequests > 0 && (
-                          <Badge className="bg-green-100 text-green-800 text-xs">
-                            {user.readyRequests} ready
-                          </Badge>
-                        )}
-                        {user.activeRequests === 0 && user.readyRequests === 0 && (
-                          <Badge variant="outline" className="text-xs">None</Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {user.unreadNotifications > 0 ? (
-                        <Badge variant="destructive">{user.unreadNotifications} unread</Badge>
-                      ) : (
-                        <Badge variant="outline">All read</Badge>
-                      )}
+                      <Badge variant="outline">{user.activeRequests + user.readyRequests}</Badge>
                     </TableCell>
                     <TableCell>
                       <Button

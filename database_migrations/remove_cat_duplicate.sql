@@ -51,3 +51,4 @@ WHERE LOWER(TRIM(title)) = 'cat'
 -- Success message
 SELECT '✅ Duplicate "cat" book removed! Kept the one with lowest ID.' as message;
 
+
