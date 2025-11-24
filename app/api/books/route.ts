@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { title, author, subject, catalog_no, cover_photo_url, isbn, quantity } = body
+    const { title, author, subject, catalog_no, cover_photo_url, isbn, quantity, shelf } = body
 
     // Validate required fields
     if (!title || !author || !subject) {
@@ -77,6 +77,13 @@ export async function POST(request: NextRequest) {
     // Only include quantity if provided (column may not exist)
     if (quantity !== undefined) {
       insertData.quantity = quantity ? parseInt(quantity) : 1
+    }
+    
+    // Include shelf if provided
+    if (shelf !== undefined) {
+      insertData.shelf = shelf.trim() || 'Shelf 1'
+    } else {
+      insertData.shelf = 'Shelf 1' // Default shelf
     }
 
     // Insert new book
@@ -141,7 +148,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { id, title, author, subject, catalog_no, cover_photo_url, isbn, quantity, available } = body
+    const { id, title, author, subject, catalog_no, cover_photo_url, isbn, quantity, available, shelf } = body
 
     if (!id) {
       return NextResponse.json(
@@ -163,6 +170,7 @@ export async function PUT(request: NextRequest) {
       updateData.quantity = parseInt(quantity) || 1
     }
     if (available !== undefined) updateData.available = available
+    if (shelf !== undefined) updateData.shelf = shelf.trim() || 'Shelf 1'
     updateData.updated_at = new Date().toISOString()
 
     // Update book

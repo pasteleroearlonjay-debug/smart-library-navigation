@@ -217,6 +217,11 @@ export default function BooksPage() {
                           Catalog: {book.catalog_no}
                         </Badge>
                       )}
+                      {book.shelf && (
+                        <Badge variant="outline" className="text-xs">
+                          {book.shelf}
+                        </Badge>
+                      )}
                       {book.isbn && (
                         <Badge variant="secondary" className="text-xs">
                           ISBN: {book.isbn}

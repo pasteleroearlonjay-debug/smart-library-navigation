@@ -180,6 +180,11 @@ export default function SearchPage() {
                             {book.catalog_no && (
                               <span className="text-xs text-gray-500">Catalog: {book.catalog_no}</span>
                             )}
+                            {book.shelf && (
+                              <Badge variant="outline" className="text-xs">
+                                {book.shelf}
+                              </Badge>
+                            )}
                             <Badge variant={book.available ? "default" : "destructive"}>
                               {book.available ? "Available" : "Borrowed"}
                             </Badge>

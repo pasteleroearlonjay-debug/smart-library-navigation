@@ -106,6 +106,7 @@ export default function ShelfPage() {
   const [currentBookSubject, setCurrentBookSubject] = useState("")
   const [currentBookCatalogNo, setCurrentBookCatalogNo] = useState("")
   const [currentBookQuantity, setCurrentBookQuantity] = useState("1")
+  const [currentBookShelf, setCurrentBookShelf] = useState("Shelf 1")
   const [editingBookId, setEditingBookId] = useState<string | null>(null)
   const [currentBookCover, setCurrentBookCover] = useState<File | null>(null)
   const [currentBookCoverPreview, setCurrentBookCoverPreview] = useState<string | null>(null)
@@ -340,7 +341,8 @@ export default function ShelfPage() {
           subject: currentBookSubject.trim(),
           catalog_no: currentBookCatalogNo.trim() || null,
           cover_photo_url: coverPhotoUrl,
-          quantity: parseInt(currentBookQuantity) || 1
+          quantity: parseInt(currentBookQuantity) || 1,
+          shelf: currentBookShelf || "Shelf 1"
         })
       })
 
@@ -359,6 +361,7 @@ export default function ShelfPage() {
         setCurrentBookSubject("")
         setCurrentBookCatalogNo("")
         setCurrentBookQuantity("1")
+        setCurrentBookShelf("Shelf 1")
         setCurrentBookCover(null)
         setCurrentBookCoverPreview(null)
         setCurrentBookCoverUrl(null)
@@ -424,13 +427,14 @@ export default function ShelfPage() {
     }
   }
 
-  const startEditBook = (bookId: string, title: string, author: string, subject: string, catalogNo?: string, coverPhotoUrl?: string, quantity?: number) => {
+  const startEditBook = (bookId: string, title: string, author: string, subject: string, catalogNo?: string, coverPhotoUrl?: string, quantity?: number, shelf?: string) => {
     setEditingBookId(bookId)
     setCurrentBookTitle(title)
     setCurrentBookAuthor(author)
     setCurrentBookSubject(subject)
     setCurrentBookCatalogNo(catalogNo || "")
     setCurrentBookQuantity(quantity?.toString() || "1")
+    setCurrentBookShelf(shelf || "Shelf 1")
     setCurrentBookCoverUrl(coverPhotoUrl || null)
     setCurrentBookCover(null)
     setCurrentBookCoverPreview(coverPhotoUrl || null)
@@ -477,7 +481,8 @@ export default function ShelfPage() {
           subject: currentBookSubject.trim(),
           catalog_no: currentBookCatalogNo.trim() || null,
           cover_photo_url: coverPhotoUrl,
-          quantity: parseInt(currentBookQuantity) || 1
+          quantity: parseInt(currentBookQuantity) || 1,
+          shelf: currentBookShelf || "Shelf 1"
         })
       })
 
@@ -497,6 +502,7 @@ export default function ShelfPage() {
         setCurrentBookSubject("")
         setCurrentBookCatalogNo("")
         setCurrentBookQuantity("1")
+        setCurrentBookShelf("Shelf 1")
         setCurrentBookCover(null)
         setCurrentBookCoverPreview(null)
         setCurrentBookCoverUrl(null)
@@ -795,6 +801,20 @@ export default function ShelfPage() {
                                 placeholder="1" 
                               />
                             </div>
+                            <div className="space-y-1">
+                              <Label htmlFor="book-shelf">Shelf</Label>
+                              <select
+                                id="book-shelf"
+                                value={currentBookShelf}
+                                onChange={(e) => setCurrentBookShelf(e.target.value)}
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                              >
+                                <option value="Shelf 1">Shelf 1</option>
+                                <option value="Shelf 2">Shelf 2</option>
+                                <option value="Shelf 3">Shelf 3</option>
+                                <option value="Shelf 4">Shelf 4</option>
+                              </select>
+                            </div>
                           </div>
                           {/* Cover Photo Upload */}
                           <div className="space-y-2 col-span-2">
@@ -886,7 +906,7 @@ export default function ShelfPage() {
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <Button size="sm" variant="outline" onClick={() => startEditBook(b.id, b.title, b.author, b.subject, (b as any).catalog_no, (b as any).cover_photo_url, (b as any).quantity)}>
+                                  <Button size="sm" variant="outline" onClick={() => startEditBook(b.id, b.title, b.author, b.subject, (b as any).catalog_no, (b as any).cover_photo_url, (b as any).quantity, (b as any).shelf)}>
                                     <Edit className="h-3 w-3 mr-1" /> Edit
                                   </Button>
                                   <Button size="sm" variant="destructive" onClick={() => removeBookFromShelf(b.id)} disabled={isLoading}>

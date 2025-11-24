@@ -33,23 +33,86 @@ export async function GET(request: NextRequest) {
 
     console.log(`Found ${members?.length || 0} members`)
 
+    // Fetch book requests for all members (if table exists)
+    let bookRequests: any[] = []
+    try {
+      const { data, error: requestsError } = await supabase
+        .from('book_requests')
+        .select('member_id, status')
+        .in('status', ['pending', 'approved', 'ready'])
+      
+      if (!requestsError && data) {
+        bookRequests = data
+      }
+    } catch (e) {
+      console.log('book_requests table may not exist, skipping...')
+    }
+
+    // Fetch unread notifications for all members (if table exists)
+    let notifications: any[] = []
+    try {
+      const { data, error: notificationsError } = await supabase
+        .from('user_notifications')
+        .select('member_id, is_read')
+        .eq('is_read', false)
+      
+      if (!notificationsError && data) {
+        notifications = data
+      }
+    } catch (e) {
+      console.log('user_notifications table may not exist, skipping...')
+    }
+
+    // Create maps for quick lookup
+    const requestsByMember: Record<string, { active: number, ready: number }> = {}
+    const notificationsByMember: Record<string, number> = {}
+
+    // Count requests by member
+    if (bookRequests) {
+      bookRequests.forEach((req: any) => {
+        const memberId = req.member_id
+        if (!requestsByMember[memberId]) {
+          requestsByMember[memberId] = { active: 0, ready: 0 }
+        }
+        if (req.status === 'pending' || req.status === 'approved') {
+          requestsByMember[memberId].active++
+        }
+        if (req.status === 'ready') {
+          requestsByMember[memberId].ready++
+        }
+      })
+    }
+
+    // Count unread notifications by member
+    if (notifications) {
+      notifications.forEach((notif: any) => {
+        const memberId = notif.member_id
+        notificationsByMember[memberId] = (notificationsByMember[memberId] || 0) + 1
+      })
+    }
+
     // Transform data for the frontend
-    const users = members?.map(member => ({
-      id: member.id,
-      name: member.name,
-      email: member.email,
-      membershipId: member.membership_id || 'N/A',
-      joinDate: member.join_date || member.created_at,
-      borrowedBooks: member.borrowed_count || 0,
-      overdueBooks: member.overdue_count || 0,
-      activeRequests: 0, // Will be updated when book_requests table is available
-      readyRequests: 0,  // Will be updated when book_requests table is available
-      unreadNotifications: 0, // Will be updated when user_notifications table is available
-      status: member.status || 'Active',
-      emailVerified: member.email_verified || false,
-      lastLogin: member.last_login || null,
-      profilePicture: member.profile_picture_url || null
-    })) || []
+    const users = members?.map(member => {
+      const memberRequests = requestsByMember[member.id] || { active: 0, ready: 0 }
+      const unreadCount = notificationsByMember[member.id] || 0
+      
+      return {
+        id: member.id,
+        name: member.name,
+        email: member.email,
+        membershipId: member.membership_id || 'N/A',
+        joinDate: member.join_date || member.created_at,
+        borrowedBooks: member.borrowed_count || 0,
+        overdueBooks: member.overdue_count || 0,
+        activeRequests: memberRequests.active,
+        readyRequests: memberRequests.ready,
+        unreadNotifications: unreadCount,
+        status: member.status || 'Active',
+        emailVerified: member.email_verified || false,
+        lastLogin: member.last_login || null,
+        profilePicture: member.profile_picture_url || null
+      }
+    }) || []
 
     // Calculate statistics
     const stats = {
