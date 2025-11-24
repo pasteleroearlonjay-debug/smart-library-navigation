@@ -2,8 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-const supabase = createClient(supabaseUrl, supabaseKey)
+// Use service role key for admin operations (bypasses RLS)
+// Fall back to anon key if service role not available
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false
+  }
+})
 
 // Helper function to verify admin authentication
 async function verifyAdmin(request: NextRequest): Promise<boolean> {
@@ -62,35 +69,7 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
-    // Check if bucket exists
-    const { data: buckets, error: listError } = await supabase.storage.listBuckets()
-    
-    if (!listError && buckets) {
-      const bucketExists = buckets.some(bucket => bucket.name === 'book-covers')
-      
-      if (!bucketExists) {
-        // Try to create the bucket (may fail if using anon key - that's okay)
-        const { error: createError } = await supabase.storage.createBucket('book-covers', {
-          public: true,
-          fileSizeLimit: 10485760, // 10MB
-          allowedMimeTypes: ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
-        })
-        
-        if (createError) {
-          console.error('Bucket does not exist and cannot be created via API:', createError)
-          // Return a clear error message with instructions
-          return NextResponse.json(
-            { 
-              error: 'Storage bucket "book-covers" does not exist. Please run the SQL script in database_migrations/create_book_covers_storage_bucket.sql in your Supabase SQL Editor to create it.',
-              details: createError.message,
-              sqlFile: 'database_migrations/create_book_covers_storage_bucket.sql'
-            },
-            { status: 500 }
-          )
-        }
-      }
-    }
-
+    // Try to upload directly first (bucket might exist but not be listable with anon key)
     // Upload to Supabase Storage
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('book-covers')
@@ -102,12 +81,21 @@ export async function POST(request: NextRequest) {
     if (uploadError) {
       console.error('Error uploading file:', uploadError)
       
+      // Check if bucket exists (might not be visible with anon key, but let's try)
+      const { data: buckets, error: listError } = await supabase.storage.listBuckets()
+      const bucketExists = !listError && buckets?.some(bucket => bucket.name === 'book-covers')
+      
       // Provide helpful error message for bucket not found
-      if (uploadError.message?.includes('Bucket not found') || uploadError.message?.includes('bucket')) {
+      if (uploadError.message?.includes('Bucket not found') || 
+          uploadError.message?.includes('bucket') || 
+          uploadError.message?.includes('does not exist') ||
+          (!bucketExists && (uploadError.statusCode === 404 || uploadError.statusCode === 400))) {
         return NextResponse.json(
           { 
-            error: 'Storage bucket "book-covers" not found. Please create it in Supabase: Storage > New bucket > Name: "book-covers" > Public: Yes',
-            details: uploadError.message
+            error: 'Storage bucket "book-covers" does not exist. Please run the SQL script in database_migrations/fix_shelf_and_bucket.sql in your Supabase SQL Editor to create it.',
+            details: uploadError.message,
+            sqlFile: 'database_migrations/fix_shelf_and_bucket.sql',
+            hint: 'The bucket must be created via SQL in Supabase SQL Editor, not through the API.'
           },
           { status: 500 }
         )

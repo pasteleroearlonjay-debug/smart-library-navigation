@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Lightbulb, Zap, Wifi, AlertTriangle, CheckCircle, Activity, Calculator, Atom, Globe, Heart, Shield, Wrench, Plus, X, Edit, Trash2, BookPlus, Image as ImageIcon, Upload } from 'lucide-react'
+import { Lightbulb, Zap, Wifi, AlertTriangle, CheckCircle, Activity, Calculator, Atom, Globe, Heart, Shield, Wrench, Plus, X, Edit, Trash2, BookPlus } from 'lucide-react'
 import { AdminSidebar } from "@/components/admin-sidebar"
 import { SUBJECTS } from "@/lib/subjects"
 import { useRouter } from "next/navigation"
@@ -18,6 +18,7 @@ export default function ShelfPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [books, setBooks] = useState<any[]>([])
+  const isSubmittingRef = useRef(false) // Use ref to prevent double submissions
   const [subjectData, setSubjectData] = useState([
     {
       id: "Mathematics",
@@ -108,10 +109,6 @@ export default function ShelfPage() {
   const [currentBookQuantity, setCurrentBookQuantity] = useState("1")
   const [currentBookShelf, setCurrentBookShelf] = useState("Shelf 1")
   const [editingBookId, setEditingBookId] = useState<string | null>(null)
-  const [currentBookCover, setCurrentBookCover] = useState<File | null>(null)
-  const [currentBookCoverPreview, setCurrentBookCoverPreview] = useState<string | null>(null)
-  const [currentBookCoverUrl, setCurrentBookCoverUrl] = useState<string | null>(null)
-  const [isUploadingCover, setIsUploadingCover] = useState(false)
 
   // Fetch books from database on mount
   useEffect(() => {
@@ -133,7 +130,6 @@ export default function ShelfPage() {
           author: book.author,
           subject: book.subject,
           catalog_no: book.catalog_no,
-          cover_photo_url: book.cover_photo_url,
           quantity: book.quantity || 1
         }))
         setShelves(prev => prev.map(s => ({ ...s, books: booksByShelf })))
@@ -311,24 +307,18 @@ export default function ShelfPage() {
 
   const addBookToShelf = async () => {
     if (!currentBookTitle.trim() || !currentBookAuthor.trim() || !currentBookSubject.trim()) return
+    
+    // Prevent double-submission using ref (more reliable than state)
+    if (isSubmittingRef.current || isLoading) {
+      console.warn('Book addition already in progress, ignoring duplicate call')
+      return
+    }
 
     try {
+      isSubmittingRef.current = true
       setIsLoading(true)
       const adminToken = localStorage.getItem('adminToken')
       const adminUser = localStorage.getItem('adminUser')
-
-      // Upload cover photo if provided (optional - continue even if upload fails)
-      let coverPhotoUrl = currentBookCoverUrl
-      if (currentBookCover) {
-        const uploadedUrl = await uploadCoverPhoto(currentBookCover)
-        if (uploadedUrl) {
-          coverPhotoUrl = uploadedUrl
-        } else {
-          // Upload failed, but continue without cover photo
-          console.warn('Cover photo upload failed, continuing without cover photo')
-          // Don't return - allow book creation to continue
-        }
-      }
 
       // Create book in database
       const response = await fetch('/api/books', {
@@ -369,13 +359,19 @@ export default function ShelfPage() {
         setCurrentBookCoverPreview(null)
         setCurrentBookCoverUrl(null)
       } else {
-        alert(`Error: ${data.error}`)
+        // Handle duplicate error specifically
+        if (response.status === 409) {
+          alert(`This book already exists: ${data.error}\n\nIf you want to add another copy, please increase the quantity instead.`)
+        } else {
+          alert(`Error: ${data.error}`)
+        }
       }
     } catch (error) {
       console.error('Error adding book:', error)
       alert('Failed to add book. Please try again.')
     } finally {
       setIsLoading(false)
+      isSubmittingRef.current = false
     }
   }
 
@@ -438,9 +434,6 @@ export default function ShelfPage() {
     setCurrentBookCatalogNo(catalogNo || "")
     setCurrentBookQuantity(quantity?.toString() || "1")
     setCurrentBookShelf(shelf || "Shelf 1")
-    setCurrentBookCoverUrl(coverPhotoUrl || null)
-    setCurrentBookCover(null)
-    setCurrentBookCoverPreview(coverPhotoUrl || null)
   }
 
   const saveEditBook = async () => {
@@ -459,19 +452,6 @@ export default function ShelfPage() {
         return
       }
 
-      // Upload new cover photo if provided (optional - continue even if upload fails)
-      let coverPhotoUrl = currentBookCoverUrl
-      if (currentBookCover) {
-        const uploadedUrl = await uploadCoverPhoto(currentBookCover, book.id)
-        if (uploadedUrl) {
-          coverPhotoUrl = uploadedUrl
-        } else {
-          // Upload failed, but continue without cover photo
-          console.warn('Cover photo upload failed, continuing without cover photo')
-          // Don't return - allow book update to continue
-        }
-      }
-
       // Update book in database
       const response = await fetch('/api/books', {
         method: 'PUT',
@@ -486,7 +466,7 @@ export default function ShelfPage() {
           author: currentBookAuthor.trim(),
           subject: currentBookSubject.trim(),
           catalog_no: currentBookCatalogNo.trim() || null,
-          cover_photo_url: coverPhotoUrl,
+          cover_photo_url: null,
           quantity: parseInt(currentBookQuantity) || 1,
           shelf: currentBookShelf || "Shelf 1"
         })
@@ -509,9 +489,6 @@ export default function ShelfPage() {
         setCurrentBookCatalogNo("")
         setCurrentBookQuantity("1")
         setCurrentBookShelf("Shelf 1")
-        setCurrentBookCover(null)
-        setCurrentBookCoverPreview(null)
-        setCurrentBookCoverUrl(null)
       } else {
         alert(`Error: ${data.error}`)
       }
@@ -822,52 +799,10 @@ export default function ShelfPage() {
                               </select>
                             </div>
                           </div>
-                          {/* Cover Photo Upload */}
-                          <div className="space-y-2 col-span-2">
-                            <Label htmlFor="book-cover">Cover Photo (Optional)</Label>
-                            <div className="flex items-center gap-3">
-                              <div className="flex-1">
-                                <Input
-                                  id="book-cover"
-                                  type="file"
-                                  accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
-                                  onChange={handleCoverPhotoChange}
-                                  className="cursor-pointer"
-                                  disabled={isUploadingCover}
-                                />
-                                <p className="text-xs text-gray-500 mt-1">JPG, PNG, WebP, or GIF (max 10MB)</p>
-                              </div>
-                              {(currentBookCoverPreview || currentBookCoverUrl) && (
-                                <div className="relative w-20 h-20 border rounded overflow-hidden flex-shrink-0">
-                                  <img
-                                    src={currentBookCoverPreview || currentBookCoverUrl || ''}
-                                    alt="Cover preview"
-                                    className="w-full h-full object-cover"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setCurrentBookCover(null)
-                                      setCurrentBookCoverPreview(null)
-                                      if (!editingBookId) {
-                                        setCurrentBookCoverUrl(null)
-                                      }
-                                    }}
-                                    className="absolute top-0 right-0 bg-red-500 text-white rounded-bl p-1 hover:bg-red-600"
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                            {isUploadingCover && (
-                              <p className="text-sm text-blue-600">Uploading cover photo...</p>
-                            )}
-                          </div>
                           <div className="flex gap-2 col-span-2">
                             {editingBookId ? (
                               <>
-                                <Button onClick={saveEditBook} disabled={isLoading || isUploadingCover}>Save</Button>
+                                <Button onClick={saveEditBook} disabled={isLoading}>Save</Button>
                                 <Button variant="outline" onClick={() => { 
                                   setEditingBookId(null)
                                   setCurrentBookTitle("")
@@ -875,13 +810,18 @@ export default function ShelfPage() {
                                   setCurrentBookSubject("")
                                   setCurrentBookCatalogNo("")
                                   setCurrentBookQuantity("1")
-                                  setCurrentBookCover(null)
-                                  setCurrentBookCoverPreview(null)
-                                  setCurrentBookCoverUrl(null)
                                 }}>Cancel</Button>
                               </>
                             ) : (
-                              <Button onClick={addBookToShelf} disabled={!currentBookTitle || !currentBookAuthor || !currentBookSubject || isLoading || isUploadingCover}>
+                              <Button 
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  addBookToShelf()
+                                }} 
+                                disabled={!currentBookTitle || !currentBookAuthor || !currentBookSubject || isLoading || isSubmittingRef.current}
+                              >
                                 {isLoading ? 'Adding...' : 'Add Book'}
                               </Button>
                             )}
@@ -892,17 +832,9 @@ export default function ShelfPage() {
                             {shelves.find(s => s.id === selectedShelfId)?.books.map(b => (
                               <div key={b.id} className="flex items-center justify-between p-2 border rounded">
                                 <div className="flex items-center gap-3 flex-1">
-                                  {(b as any).cover_photo_url ? (
-                                    <img
-                                      src={(b as any).cover_photo_url}
-                                      alt={b.title}
-                                      className="w-12 h-16 object-cover rounded border"
-                                    />
-                                  ) : (
-                                    <div className="w-12 h-16 bg-gray-200 rounded border flex items-center justify-center">
-                                      <BookPlus className="h-6 w-6 text-gray-400" />
-                                    </div>
-                                  )}
+                                  <div className="w-12 h-16 bg-gray-200 rounded border flex items-center justify-center">
+                                    <BookPlus className="h-6 w-6 text-gray-400" />
+                                  </div>
                                   <div className="flex-1">
                                     <p className="font-medium text-sm">{b.title}</p>
                                     <p className="text-xs text-gray-600">by {b.author} • {b.subject}</p>
@@ -912,7 +844,7 @@ export default function ShelfPage() {
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <Button size="sm" variant="outline" onClick={() => startEditBook(b.id, b.title, b.author, b.subject, (b as any).catalog_no, (b as any).cover_photo_url, (b as any).quantity, (b as any).shelf)}>
+                                  <Button size="sm" variant="outline" onClick={() => startEditBook(b.id, b.title, b.author, b.subject, (b as any).catalog_no, undefined, (b as any).quantity, (b as any).shelf)}>
                                     <Edit className="h-3 w-3 mr-1" /> Edit
                                   </Button>
                                   <Button size="sm" variant="destructive" onClick={() => removeBookFromShelf(b.id)} disabled={isLoading}>

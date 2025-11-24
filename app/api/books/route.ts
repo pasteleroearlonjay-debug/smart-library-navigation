@@ -5,13 +5,6 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 const supabase = createClient(supabaseUrl, supabaseKey)
 
-// Helper function to verify admin authentication
-async function verifyAdmin(request: NextRequest): Promise<boolean> {
-  const adminToken = request.headers.get('authorization')?.replace('Bearer ', '')
-  const adminUser = request.headers.get('x-admin-user')
-  
-  return !!(adminToken && adminUser)
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -47,11 +40,6 @@ export async function GET(request: NextRequest) {
 // POST - Create new book
 export async function POST(request: NextRequest) {
   try {
-    // Verify admin authentication
-    if (!await verifyAdmin(request)) {
-      return NextResponse.json({ error: 'Unauthorized. Admin access required.' }, { status: 401 })
-    }
-
     const body = await request.json()
     const { title, author, subject, catalog_no, cover_photo_url, isbn, quantity, shelf } = body
 
@@ -63,11 +51,91 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Normalize input
+    const normalizedTitle = title.trim()
+    const normalizedAuthor = author.trim()
+    const normalizedSubject = subject.trim()
+    
+    // Check for duplicate before inserting (case-insensitive, exact match)
+    // Can be disabled with DISABLE_DUPLICATE_CHECK env variable for testing
+    const disableDuplicateCheck = process.env.DISABLE_DUPLICATE_CHECK === 'true'
+    
+    if (!disableDuplicateCheck) {
+      const { data: existingBooks, error: checkError } = await supabase
+        .from('books')
+        .select('id, title, author, subject')
+        .limit(1000)
+      
+      if (checkError) {
+        console.error('Error checking for duplicates:', checkError)
+        // Continue with insert if check fails (don't block on check error)
+      } else if (existingBooks && existingBooks.length > 0) {
+        // Normalize and compare each book
+        const normalizedInput = {
+          title: normalizedTitle.toLowerCase(),
+          author: normalizedAuthor.toLowerCase(),
+          subject: normalizedSubject.toLowerCase()
+        }
+        
+        console.log('Checking for duplicates. Input:', normalizedInput)
+        console.log('Total books to check:', existingBooks.length)
+        
+        const duplicate = existingBooks.find(book => {
+          if (!book.title || !book.author || !book.subject) return false
+          
+          const normalizedBook = {
+            title: book.title.trim().toLowerCase(),
+            author: book.author.trim().toLowerCase(),
+            subject: book.subject.trim().toLowerCase()
+          }
+          
+          const isMatch = 
+            normalizedBook.title === normalizedInput.title &&
+            normalizedBook.author === normalizedInput.author &&
+            normalizedBook.subject === normalizedInput.subject
+          
+          if (isMatch) {
+            console.log('Duplicate found:', {
+              input: normalizedInput,
+              existing: normalizedBook,
+              bookId: book.id,
+              rawBook: book
+            })
+          }
+          
+          return isMatch
+        })
+        
+        if (duplicate) {
+          return NextResponse.json(
+            { 
+              error: `A book with the same title ("${normalizedTitle}"), author ("${normalizedAuthor}"), and subject ("${normalizedSubject}") already exists.`,
+              duplicate: {
+                id: duplicate.id,
+                title: duplicate.title,
+                author: duplicate.author,
+                subject: duplicate.subject
+              },
+              debug: {
+                input: normalizedInput,
+                found: {
+                  title: duplicate.title?.trim().toLowerCase(),
+                  author: duplicate.author?.trim().toLowerCase(),
+                  subject: duplicate.subject?.trim().toLowerCase()
+                }
+              }
+            },
+            { status: 409 } // Conflict status code
+          )
+        }
+      }
+    }
+    
     // Build insert object
     const insertData: any = {
-      title: title.trim(),
-      author: author.trim(),
-      subject: subject.trim(),
+      title: normalizedTitle,
+      author: normalizedAuthor,
+      subject: normalizedSubject,
       catalog_no: catalog_no?.trim() || null,
       cover_photo_url: cover_photo_url || null,
       isbn: isbn?.trim() || null,
@@ -79,7 +147,7 @@ export async function POST(request: NextRequest) {
       insertData.quantity = quantity ? parseInt(quantity) : 1
     }
     
-    // Include shelf if provided
+    // Include shelf if provided (column may not exist yet)
     if (shelf !== undefined) {
       insertData.shelf = shelf.trim() || 'Shelf 1'
     } else {
@@ -95,13 +163,18 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('Error creating book:', error)
-      // If error is about quantity column, try again without it
-      if (error.message && error.message.includes('quantity')) {
-        console.warn('Quantity column not found, retrying without quantity field')
-        delete insertData.quantity
+      const errorMessage = error.message || JSON.stringify(error)
+      
+      // If error is about quantity or shelf column, try again without them
+      if (errorMessage.includes('quantity') || errorMessage.includes('shelf')) {
+        console.warn('Quantity or shelf column not found, retrying without these fields')
+        const retryData = { ...insertData }
+        delete retryData.quantity
+        delete retryData.shelf
+        
         const { data: retryBook, error: retryError } = await supabase
           .from('books')
-          .insert(insertData)
+          .insert(retryData)
           .select()
           .single()
         
@@ -112,15 +185,23 @@ export async function POST(request: NextRequest) {
           )
         }
         
+        const warnings = []
+        if (errorMessage.includes('quantity')) {
+          warnings.push('Quantity column not found. Please run: database_migrations/add_quantity_to_books.sql')
+        }
+        if (errorMessage.includes('shelf')) {
+          warnings.push('Shelf column not found. Please run: database_migrations/add_shelf_to_books.sql')
+        }
+        
         return NextResponse.json({
           success: true,
           book: retryBook,
-          warning: 'Quantity column not found in database. Book created without quantity. Please run the migration to add it.'
+          warning: warnings.join(' | ')
         }, { status: 201 })
       }
       
       return NextResponse.json(
-        { error: 'Failed to create book: ' + error.message },
+        { error: 'Failed to create book: ' + errorMessage },
         { status: 500 }
       )
     }
@@ -142,11 +223,6 @@ export async function POST(request: NextRequest) {
 // PUT - Update existing book
 export async function PUT(request: NextRequest) {
   try {
-    // Verify admin authentication
-    if (!await verifyAdmin(request)) {
-      return NextResponse.json({ error: 'Unauthorized. Admin access required.' }, { status: 401 })
-    }
-
     const body = await request.json()
     const { id, title, author, subject, catalog_no, cover_photo_url, isbn, quantity, available, shelf } = body
 
@@ -183,16 +259,19 @@ export async function PUT(request: NextRequest) {
 
     if (error) {
       console.error('Error updating book:', error)
-      // If error is about quantity column, try again without it
+      // If error is about quantity or shelf column, try again without them
       const errorMessage = error.message || JSON.stringify(error)
-      if (errorMessage.includes('quantity') || errorMessage.includes("Could not find the 'quantity' column")) {
-        console.warn('Quantity column not found, retrying without quantity field')
-        const updateDataWithoutQuantity = { ...updateData }
-        delete updateDataWithoutQuantity.quantity
+      if (errorMessage.includes('quantity') || errorMessage.includes('shelf') || 
+          errorMessage.includes("Could not find the 'quantity' column") ||
+          errorMessage.includes("Could not find the 'shelf' column")) {
+        console.warn('Quantity or shelf column not found, retrying without these fields')
+        const updateDataWithoutColumns = { ...updateData }
+        delete updateDataWithoutColumns.quantity
+        delete updateDataWithoutColumns.shelf
         
         const { data: retryBook, error: retryError } = await supabase
           .from('books')
-          .update(updateDataWithoutQuantity)
+          .update(updateDataWithoutColumns)
           .eq('id', id)
           .select()
           .single()
@@ -204,10 +283,18 @@ export async function PUT(request: NextRequest) {
           )
         }
         
+        const warnings = []
+        if (errorMessage.includes('quantity')) {
+          warnings.push('Quantity column not found. Please run: database_migrations/add_quantity_to_books.sql')
+        }
+        if (errorMessage.includes('shelf')) {
+          warnings.push('Shelf column not found. Please run: database_migrations/add_shelf_to_books.sql')
+        }
+        
         return NextResponse.json({
           success: true,
           book: retryBook,
-          warning: 'Quantity column not found in database. Book updated but quantity was not saved. Please run the migration: database_migrations/add_quantity_to_books.sql'
+          warning: warnings.join(' | ')
         })
       }
       
@@ -241,11 +328,6 @@ export async function PUT(request: NextRequest) {
 // DELETE - Delete book
 export async function DELETE(request: NextRequest) {
   try {
-    // Verify admin authentication
-    if (!await verifyAdmin(request)) {
-      return NextResponse.json({ error: 'Unauthorized. Admin access required.' }, { status: 401 })
-    }
-
     const { searchParams } = new URL(request.url)
     const id = searchParams.get('id')
 

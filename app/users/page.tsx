@@ -447,8 +447,6 @@ export default function UsersPage() {
                   <TableHead>Overdue</TableHead>
                   <TableHead>Requests</TableHead>
                   <TableHead>Notifications</TableHead>
-                  <TableHead>Email Status</TableHead>
-                  <TableHead>Account Status</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -501,8 +499,6 @@ export default function UsersPage() {
                         <Badge variant="outline">All read</Badge>
                       )}
                     </TableCell>
-                    <TableCell>{getEmailVerifiedBadge(user.emailVerified)}</TableCell>
-                    <TableCell>{getStatusBadge(user.status)}</TableCell>
                     <TableCell>
                       <Button
                         size="sm"
