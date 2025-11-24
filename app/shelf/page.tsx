@@ -9,11 +9,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Lightbulb, Zap, Wifi, AlertTriangle, CheckCircle, Activity, Calculator, Atom, Globe, Heart, Shield, Wrench, Plus, X, Edit, Trash2, BookPlus } from 'lucide-react'
+import { Lightbulb, Zap, Wifi, AlertTriangle, CheckCircle, Activity, Calculator, Atom, Globe, Heart, Shield, Wrench, Plus, X, Edit, Trash2, BookPlus, Image as ImageIcon, Upload } from 'lucide-react'
 import { AdminSidebar } from "@/components/admin-sidebar"
 import { SUBJECTS } from "@/lib/subjects"
+import { useRouter } from "next/navigation"
 
 export default function ShelfPage() {
+  const router = useRouter()
+  const [isLoading, setIsLoading] = useState(false)
+  const [books, setBooks] = useState<any[]>([])
   const [subjectData, setSubjectData] = useState([
     {
       id: "Mathematics",
@@ -101,9 +105,46 @@ export default function ShelfPage() {
   const [currentBookAuthor, setCurrentBookAuthor] = useState("")
   const [currentBookSubject, setCurrentBookSubject] = useState("")
   const [currentBookCatalogNo, setCurrentBookCatalogNo] = useState("")
+  const [currentBookQuantity, setCurrentBookQuantity] = useState("1")
   const [editingBookId, setEditingBookId] = useState<string | null>(null)
+  const [currentBookCover, setCurrentBookCover] = useState<File | null>(null)
+  const [currentBookCoverPreview, setCurrentBookCoverPreview] = useState<string | null>(null)
+  const [currentBookCoverUrl, setCurrentBookCoverUrl] = useState<string | null>(null)
+  const [isUploadingCover, setIsUploadingCover] = useState(false)
 
-  // Available books catalog (sample data)
+  // Fetch books from database on mount
+  useEffect(() => {
+    fetchBooks()
+  }, [])
+
+  const fetchBooks = async () => {
+    try {
+      setIsLoading(true)
+      const response = await fetch('/api/books')
+      const data = await response.json()
+      
+      if (response.ok) {
+        setBooks(data.books || [])
+        // Update shelves with books from database
+        const booksByShelf = (data.books || []).map((book: any) => ({
+          id: book.id.toString(),
+          title: book.title,
+          author: book.author,
+          subject: book.subject,
+          catalog_no: book.catalog_no,
+          cover_photo_url: book.cover_photo_url,
+          quantity: book.quantity || 1
+        }))
+        setShelves(prev => prev.map(s => ({ ...s, books: booksByShelf })))
+      }
+    } catch (error) {
+      console.error('Failed to fetch books:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Available books catalog (sample data - can be replaced with database books)
   const availableBooks = [
     { id: "b1", title: "Algebra Fundamentals", author: "John Smith", subject: "Mathematics" },
     { id: "b2", title: "Calculus Made Easy", author: "Mary Johnson", subject: "Mathematics" },
@@ -202,56 +243,264 @@ export default function ShelfPage() {
     }
   }
 
-  const addBookToShelf = () => {
-    if (!currentBookTitle.trim() || !currentBookAuthor.trim() || !currentBookSubject.trim()) return
-    const newBook = {
-      id: `book-${Date.now()}`,
-      title: currentBookTitle.trim(),
-      author: currentBookAuthor.trim(),
-      subject: currentBookSubject.trim(),
-      catalog_no: currentBookCatalogNo.trim() || undefined
+  const uploadCoverPhoto = async (file: File, bookId?: number): Promise<string | null> => {
+    try {
+      setIsUploadingCover(true)
+      const adminToken = localStorage.getItem('adminToken')
+      const adminUser = localStorage.getItem('adminUser')
+
+      const formData = new FormData()
+      formData.append('file', file)
+      if (bookId) {
+        formData.append('bookId', bookId.toString())
+      }
+
+      const response = await fetch('/api/books/upload-cover', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`,
+          'x-admin-user': adminUser || ''
+        },
+        body: formData
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        return data.url
+      } else {
+        console.error('Upload error:', data.error)
+        alert(`Failed to upload cover photo: ${data.error}`)
+        return null
+      }
+    } catch (error) {
+      console.error('Error uploading cover:', error)
+      alert('Failed to upload cover photo. Please try again.')
+      return null
+    } finally {
+      setIsUploadingCover(false)
     }
-    setShelves(prev => prev.map(s => s.id === selectedShelfId ? { ...s, books: [...s.books, newBook] } : s))
-    setCurrentBookTitle("")
-    setCurrentBookAuthor("")
-    setCurrentBookSubject("")
-    setCurrentBookCatalogNo("")
+  }
+
+  const handleCoverPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
+      if (!allowedTypes.includes(file.type)) {
+        alert('Invalid file type. Only JPG, PNG, WebP, and GIF images are allowed.')
+        return
+      }
+
+      // Validate file size (10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        alert('File size exceeds 10MB limit.')
+        return
+      }
+
+      setCurrentBookCover(file)
+      // Create preview
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setCurrentBookCoverPreview(reader.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const addBookToShelf = async () => {
+    if (!currentBookTitle.trim() || !currentBookAuthor.trim() || !currentBookSubject.trim()) return
+
+    try {
+      setIsLoading(true)
+      const adminToken = localStorage.getItem('adminToken')
+      const adminUser = localStorage.getItem('adminUser')
+
+      // Upload cover photo if provided
+      let coverPhotoUrl = currentBookCoverUrl
+      if (currentBookCover) {
+        coverPhotoUrl = await uploadCoverPhoto(currentBookCover)
+        if (!coverPhotoUrl) {
+          setIsLoading(false)
+          return // Stop if upload failed
+        }
+      }
+
+      // Create book in database
+      const response = await fetch('/api/books', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${adminToken}`,
+          'x-admin-user': adminUser || ''
+        },
+        body: JSON.stringify({
+          title: currentBookTitle.trim(),
+          author: currentBookAuthor.trim(),
+          subject: currentBookSubject.trim(),
+          catalog_no: currentBookCatalogNo.trim() || null,
+          cover_photo_url: coverPhotoUrl,
+          quantity: parseInt(currentBookQuantity) || 1
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        // Refresh books list
+        await fetchBooks()
+        // Reset form
+        setCurrentBookTitle("")
+        setCurrentBookAuthor("")
+        setCurrentBookSubject("")
+        setCurrentBookCatalogNo("")
+        setCurrentBookQuantity("1")
+        setCurrentBookCover(null)
+        setCurrentBookCoverPreview(null)
+        setCurrentBookCoverUrl(null)
+      } else {
+        alert(`Error: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('Error adding book:', error)
+      alert('Failed to add book. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const addExistingBookToShelf = (book: { id: string, title: string, author: string, subject: string }) => {
+    // This function adds an existing book from the catalog to the shelf
+    // For now, we'll just add it to local state (shelf assignment)
+    // In a full implementation, you might want to track shelf assignments in the database
     const toAdd = { ...book, id: `book-${Date.now()}` }
     setShelves(prev => prev.map(s => s.id === selectedShelfId ? { ...s, books: [...s.books, toAdd] } : s))
   }
 
-  const removeBookFromShelf = (bookId: string) => {
-    setShelves(prev => prev.map(s => s.id === selectedShelfId ? { ...s, books: s.books.filter(b => b.id !== bookId) } : s))
+  const removeBookFromShelf = async (bookId: string) => {
+    if (!confirm('Are you sure you want to delete this book? This action cannot be undone.')) {
+      return
+    }
+
+    try {
+      setIsLoading(true)
+      const adminToken = localStorage.getItem('adminToken')
+      const adminUser = localStorage.getItem('adminUser')
+
+      // Find the book to get its database ID
+      const book = books.find(b => b.id.toString() === bookId || b.id === parseInt(bookId))
+      if (!book) {
+        // If not found in database, just remove from local state
+        setShelves(prev => prev.map(s => s.id === selectedShelfId ? { ...s, books: s.books.filter(b => b.id !== bookId) } : s))
+        setIsLoading(false)
+        return
+      }
+
+      const response = await fetch(`/api/books?id=${book.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`,
+          'x-admin-user': adminUser || ''
+        }
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        // Refresh books list
+        await fetchBooks()
+      } else {
+        alert(`Error: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('Error deleting book:', error)
+      alert('Failed to delete book. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  const startEditBook = (bookId: string, title: string, author: string, subject: string, catalogNo?: string) => {
+  const startEditBook = (bookId: string, title: string, author: string, subject: string, catalogNo?: string, coverPhotoUrl?: string, quantity?: number) => {
     setEditingBookId(bookId)
     setCurrentBookTitle(title)
     setCurrentBookAuthor(author)
     setCurrentBookSubject(subject)
     setCurrentBookCatalogNo(catalogNo || "")
+    setCurrentBookQuantity(quantity?.toString() || "1")
+    setCurrentBookCoverUrl(coverPhotoUrl || null)
+    setCurrentBookCover(null)
+    setCurrentBookCoverPreview(coverPhotoUrl || null)
   }
 
-  const saveEditBook = () => {
+  const saveEditBook = async () => {
     if (!editingBookId) return
-    setShelves(prev => prev.map(s => s.id === selectedShelfId ? {
-      ...s,
-      books: s.books.map(b => b.id === editingBookId ? { 
-        ...b, 
-        title: currentBookTitle.trim(), 
-        author: currentBookAuthor.trim(), 
-        subject: currentBookSubject.trim(),
-        catalog_no: currentBookCatalogNo.trim() || undefined
-      } : b)
-    } : s))
-    setEditingBookId(null)
-    setCurrentBookTitle("")
-    setCurrentBookAuthor("")
-    setCurrentBookSubject("")
-    setCurrentBookCatalogNo("")
+
+    try {
+      setIsLoading(true)
+      const adminToken = localStorage.getItem('adminToken')
+      const adminUser = localStorage.getItem('adminUser')
+
+      // Find the book to get its database ID
+      const book = books.find(b => b.id.toString() === editingBookId || b.id === parseInt(editingBookId))
+      if (!book) {
+        alert('Book not found')
+        setIsLoading(false)
+        return
+      }
+
+      // Upload new cover photo if provided
+      let coverPhotoUrl = currentBookCoverUrl
+      if (currentBookCover) {
+        coverPhotoUrl = await uploadCoverPhoto(currentBookCover, book.id)
+        if (!coverPhotoUrl && currentBookCover) {
+          setIsLoading(false)
+          return // Stop if upload failed
+        }
+      }
+
+      // Update book in database
+      const response = await fetch('/api/books', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${adminToken}`,
+          'x-admin-user': adminUser || ''
+        },
+        body: JSON.stringify({
+          id: book.id,
+          title: currentBookTitle.trim(),
+          author: currentBookAuthor.trim(),
+          subject: currentBookSubject.trim(),
+          catalog_no: currentBookCatalogNo.trim() || null,
+          cover_photo_url: coverPhotoUrl,
+          quantity: parseInt(currentBookQuantity) || 1
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        // Refresh books list
+        await fetchBooks()
+        // Reset form
+        setEditingBookId(null)
+        setCurrentBookTitle("")
+        setCurrentBookAuthor("")
+        setCurrentBookSubject("")
+        setCurrentBookCatalogNo("")
+        setCurrentBookQuantity("1")
+        setCurrentBookCover(null)
+        setCurrentBookCoverPreview(null)
+        setCurrentBookCoverUrl(null)
+      } else {
+        alert(`Error: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('Error updating book:', error)
+      alert('Failed to update book. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const createNewShelf = () => {
@@ -527,15 +776,80 @@ export default function ShelfPage() {
                               <Label htmlFor="book-catalog-no">Catalog No.</Label>
                               <Input id="book-catalog-no" value={currentBookCatalogNo} onChange={(e) => setCurrentBookCatalogNo(e.target.value)} placeholder="Enter catalog number" />
                             </div>
+                            <div className="space-y-1">
+                              <Label htmlFor="book-quantity">Quantity</Label>
+                              <Input 
+                                id="book-quantity" 
+                                type="number" 
+                                min="1" 
+                                value={currentBookQuantity} 
+                                onChange={(e) => setCurrentBookQuantity(e.target.value)} 
+                                placeholder="1" 
+                              />
+                            </div>
                           </div>
-                          <div className="flex gap-2">
+                          {/* Cover Photo Upload */}
+                          <div className="space-y-2 col-span-2">
+                            <Label htmlFor="book-cover">Cover Photo (Optional)</Label>
+                            <div className="flex items-center gap-3">
+                              <div className="flex-1">
+                                <Input
+                                  id="book-cover"
+                                  type="file"
+                                  accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+                                  onChange={handleCoverPhotoChange}
+                                  className="cursor-pointer"
+                                  disabled={isUploadingCover}
+                                />
+                                <p className="text-xs text-gray-500 mt-1">JPG, PNG, WebP, or GIF (max 10MB)</p>
+                              </div>
+                              {(currentBookCoverPreview || currentBookCoverUrl) && (
+                                <div className="relative w-20 h-20 border rounded overflow-hidden flex-shrink-0">
+                                  <img
+                                    src={currentBookCoverPreview || currentBookCoverUrl || ''}
+                                    alt="Cover preview"
+                                    className="w-full h-full object-cover"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setCurrentBookCover(null)
+                                      setCurrentBookCoverPreview(null)
+                                      if (!editingBookId) {
+                                        setCurrentBookCoverUrl(null)
+                                      }
+                                    }}
+                                    className="absolute top-0 right-0 bg-red-500 text-white rounded-bl p-1 hover:bg-red-600"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                            {isUploadingCover && (
+                              <p className="text-sm text-blue-600">Uploading cover photo...</p>
+                            )}
+                          </div>
+                          <div className="flex gap-2 col-span-2">
                             {editingBookId ? (
                               <>
-                                <Button onClick={saveEditBook}>Save</Button>
-                                <Button variant="outline" onClick={() => { setEditingBookId(null); setCurrentBookTitle(""); setCurrentBookAuthor(""); setCurrentBookSubject(""); setCurrentBookCatalogNo("") }}>Cancel</Button>
+                                <Button onClick={saveEditBook} disabled={isLoading || isUploadingCover}>Save</Button>
+                                <Button variant="outline" onClick={() => { 
+                                  setEditingBookId(null)
+                                  setCurrentBookTitle("")
+                                  setCurrentBookAuthor("")
+                                  setCurrentBookSubject("")
+                                  setCurrentBookCatalogNo("")
+                                  setCurrentBookQuantity("1")
+                                  setCurrentBookCover(null)
+                                  setCurrentBookCoverPreview(null)
+                                  setCurrentBookCoverUrl(null)
+                                }}>Cancel</Button>
                               </>
                             ) : (
-                              <Button onClick={addBookToShelf} disabled={!currentBookTitle || !currentBookAuthor || !currentBookSubject}>Add Book</Button>
+                              <Button onClick={addBookToShelf} disabled={!currentBookTitle || !currentBookAuthor || !currentBookSubject || isLoading || isUploadingCover}>
+                                {isLoading ? 'Adding...' : 'Add Book'}
+                              </Button>
                             )}
                           </div>
 
@@ -543,18 +857,31 @@ export default function ShelfPage() {
                           <div className="space-y-2 max-h-64 overflow-auto">
                             {shelves.find(s => s.id === selectedShelfId)?.books.map(b => (
                               <div key={b.id} className="flex items-center justify-between p-2 border rounded">
-                                <div>
-                                  <p className="font-medium text-sm">{b.title}</p>
-                                  <p className="text-xs text-gray-600">by {b.author} • {b.subject}</p>
-                                  {(b as any).catalog_no && (
-                                    <p className="text-xs text-gray-500">Catalog No: {(b as any).catalog_no}</p>
+                                <div className="flex items-center gap-3 flex-1">
+                                  {(b as any).cover_photo_url ? (
+                                    <img
+                                      src={(b as any).cover_photo_url}
+                                      alt={b.title}
+                                      className="w-12 h-16 object-cover rounded border"
+                                    />
+                                  ) : (
+                                    <div className="w-12 h-16 bg-gray-200 rounded border flex items-center justify-center">
+                                      <BookPlus className="h-6 w-6 text-gray-400" />
+                                    </div>
                                   )}
+                                  <div className="flex-1">
+                                    <p className="font-medium text-sm">{b.title}</p>
+                                    <p className="text-xs text-gray-600">by {b.author} • {b.subject}</p>
+                                    {(b as any).catalog_no && (
+                                      <p className="text-xs text-gray-500">Catalog No: {(b as any).catalog_no}</p>
+                                    )}
+                                  </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <Button size="sm" variant="outline" onClick={() => startEditBook(b.id, b.title, b.author, b.subject, (b as any).catalog_no)}>
+                                  <Button size="sm" variant="outline" onClick={() => startEditBook(b.id, b.title, b.author, b.subject, (b as any).catalog_no, (b as any).cover_photo_url, (b as any).quantity)}>
                                     <Edit className="h-3 w-3 mr-1" /> Edit
                                   </Button>
-                                  <Button size="sm" variant="destructive" onClick={() => removeBookFromShelf(b.id)}>
+                                  <Button size="sm" variant="destructive" onClick={() => removeBookFromShelf(b.id)} disabled={isLoading}>
                                     <Trash2 className="h-3 w-3 mr-1" /> Delete
                                   </Button>
                                 </div>

@@ -187,6 +187,21 @@ export default function BooksPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           {filteredBooks.map((book) => (
             <Card key={book.id} className="hover:shadow-lg transition-shadow">
+              {/* Cover Photo */}
+              <div className="w-full h-48 bg-gray-200 overflow-hidden rounded-t-lg">
+                {book.cover_photo_url ? (
+                  <img
+                    src={book.cover_photo_url}
+                    alt={book.title}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                    <BookOpen className="h-16 w-16 text-gray-400" />
+                  </div>
+                )}
+              </div>
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
