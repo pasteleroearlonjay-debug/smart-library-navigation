@@ -104,6 +104,60 @@ export default function TestEmailPage() {
     }
   }
 
+  const sendSingleNotification = async (type: 'due_reminder' | 'book_ready' | 'welcome') => {
+    if (!email) {
+      setResult({ success: false, message: "Please enter an email address first" })
+      return
+    }
+
+    const sampleEmails = {
+      due_reminder: {
+        to: email,
+        subject: "📚 Book Due Reminder",
+        message: `Dear Student,\n\nYour book "Mathematics Fundamentals" is due in 2 days (January 25, 2024).\n\nPlease return it to the library or renew it online.\n\nThank you!`,
+        type: 'due_reminder' as const
+      },
+      book_ready: {
+        to: email,
+        subject: "📖 Book Ready for Pickup",
+        message: `Dear Student,\n\nYour requested book "Advanced Physics" is now ready for pickup!\n\nPlease visit the library during operating hours to collect your book.\n\nLocation: Main Library, Desk 3\n\nThank you!`,
+        type: 'book_ready' as const
+      },
+      welcome: {
+        to: email,
+        subject: "👋 Welcome to Smart Library System",
+        message: `Welcome to our Smart Library System!\n\nYour account has been created successfully.\n\nYou can now:\n- Search and borrow books\n- Request books online\n- Track your borrowing history\n- Receive email notifications\n\nLogin at: ${process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')}\n\nThank you for joining us!`,
+        type: 'welcome' as const
+      }
+    }
+
+    setIsLoading(true)
+    setResult(null)
+
+    try {
+      const emailData = sampleEmails[type]
+      const response = await fetch('/api/email/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(emailData)
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setResult({ success: true, message: `${type === 'due_reminder' ? 'Due Reminder' : type === 'book_ready' ? 'Book Ready' : 'Welcome'} notification sent successfully!` })
+      } else {
+        setResult({ success: false, message: data.error || `Failed to send ${type} notification` })
+      }
+    } catch (error) {
+      setResult({ success: false, message: "Network error. Please try again." })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
       <div className="max-w-4xl mx-auto">
@@ -176,17 +230,50 @@ export default function TestEmailPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-3">
-                <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg">
-                  <Badge variant="outline">Due Reminder</Badge>
-                  <span className="text-sm">Book due in 2 days</span>
+                <div className="flex items-center justify-between gap-2 p-3 bg-blue-50 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">Due Reminder</Badge>
+                    <span className="text-sm">Book due in 2 days</span>
+                  </div>
+                  <Button
+                    onClick={() => sendSingleNotification('due_reminder')}
+                    disabled={isLoading || !email}
+                    size="sm"
+                    variant="default"
+                  >
+                    <Send className="h-3 w-3 mr-1" />
+                    Send
+                  </Button>
                 </div>
-                <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
-                  <Badge variant="outline">Book Ready</Badge>
-                  <span className="text-sm">Requested book is ready</span>
+                <div className="flex items-center justify-between gap-2 p-3 bg-green-50 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">Book Ready</Badge>
+                    <span className="text-sm">Requested book is ready</span>
+                  </div>
+                  <Button
+                    onClick={() => sendSingleNotification('book_ready')}
+                    disabled={isLoading || !email}
+                    size="sm"
+                    variant="default"
+                  >
+                    <Send className="h-3 w-3 mr-1" />
+                    Send
+                  </Button>
                 </div>
-                <div className="flex items-center gap-2 p-3 bg-purple-50 rounded-lg">
-                  <Badge variant="outline">Welcome</Badge>
-                  <span className="text-sm">New user welcome email</span>
+                <div className="flex items-center justify-between gap-2 p-3 bg-purple-50 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">Welcome</Badge>
+                    <span className="text-sm">New user welcome email</span>
+                  </div>
+                  <Button
+                    onClick={() => sendSingleNotification('welcome')}
+                    disabled={isLoading || !email}
+                    size="sm"
+                    variant="default"
+                  >
+                    <Send className="h-3 w-3 mr-1" />
+                    Send
+                  </Button>
                 </div>
               </div>
               <Button 
