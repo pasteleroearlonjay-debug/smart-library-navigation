@@ -63,24 +63,55 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Build insert object
+    const insertData: any = {
+      title: title.trim(),
+      author: author.trim(),
+      subject: subject.trim(),
+      catalog_no: catalog_no?.trim() || null,
+      cover_photo_url: cover_photo_url || null,
+      isbn: isbn?.trim() || null,
+      available: true
+    }
+    
+    // Only include quantity if provided (column may not exist)
+    if (quantity !== undefined) {
+      insertData.quantity = quantity ? parseInt(quantity) : 1
+    }
+
     // Insert new book
     const { data: newBook, error } = await supabase
       .from('books')
-      .insert({
-        title: title.trim(),
-        author: author.trim(),
-        subject: subject.trim(),
-        catalog_no: catalog_no?.trim() || null,
-        cover_photo_url: cover_photo_url || null,
-        isbn: isbn?.trim() || null,
-        quantity: quantity ? parseInt(quantity) : 1,
-        available: true
-      })
+      .insert(insertData)
       .select()
       .single()
 
     if (error) {
       console.error('Error creating book:', error)
+      // If error is about quantity column, try again without it
+      if (error.message && error.message.includes('quantity')) {
+        console.warn('Quantity column not found, retrying without quantity field')
+        delete insertData.quantity
+        const { data: retryBook, error: retryError } = await supabase
+          .from('books')
+          .insert(insertData)
+          .select()
+          .single()
+        
+        if (retryError) {
+          return NextResponse.json(
+            { error: 'Failed to create book: ' + retryError.message },
+            { status: 500 }
+          )
+        }
+        
+        return NextResponse.json({
+          success: true,
+          book: retryBook,
+          warning: 'Quantity column not found in database. Book created without quantity. Please run the migration to add it.'
+        }, { status: 201 })
+      }
+      
       return NextResponse.json(
         { error: 'Failed to create book: ' + error.message },
         { status: 500 }
@@ -127,7 +158,10 @@ export async function PUT(request: NextRequest) {
     if (catalog_no !== undefined) updateData.catalog_no = catalog_no?.trim() || null
     if (cover_photo_url !== undefined) updateData.cover_photo_url = cover_photo_url || null
     if (isbn !== undefined) updateData.isbn = isbn?.trim() || null
-    if (quantity !== undefined) updateData.quantity = parseInt(quantity) || 1
+    // Include quantity if provided
+    if (quantity !== undefined) {
+      updateData.quantity = parseInt(quantity) || 1
+    }
     if (available !== undefined) updateData.available = available
     updateData.updated_at = new Date().toISOString()
 
@@ -141,8 +175,36 @@ export async function PUT(request: NextRequest) {
 
     if (error) {
       console.error('Error updating book:', error)
+      // If error is about quantity column, try again without it
+      const errorMessage = error.message || JSON.stringify(error)
+      if (errorMessage.includes('quantity') || errorMessage.includes("Could not find the 'quantity' column")) {
+        console.warn('Quantity column not found, retrying without quantity field')
+        const updateDataWithoutQuantity = { ...updateData }
+        delete updateDataWithoutQuantity.quantity
+        
+        const { data: retryBook, error: retryError } = await supabase
+          .from('books')
+          .update(updateDataWithoutQuantity)
+          .eq('id', id)
+          .select()
+          .single()
+        
+        if (retryError) {
+          return NextResponse.json(
+            { error: 'Failed to update book: ' + retryError.message },
+            { status: 500 }
+          )
+        }
+        
+        return NextResponse.json({
+          success: true,
+          book: retryBook,
+          warning: 'Quantity column not found in database. Book updated but quantity was not saved. Please run the migration: database_migrations/add_quantity_to_books.sql'
+        })
+      }
+      
       return NextResponse.json(
-        { error: 'Failed to update book: ' + error.message },
+        { error: 'Failed to update book: ' + errorMessage },
         { status: 500 }
       )
     }

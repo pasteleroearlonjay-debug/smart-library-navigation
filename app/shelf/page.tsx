@@ -347,6 +347,10 @@ export default function ShelfPage() {
       const data = await response.json()
 
       if (response.ok) {
+        // Show warning if quantity column doesn't exist
+        if (data.warning) {
+          alert(`Warning: ${data.warning}`)
+        }
         // Refresh books list
         await fetchBooks()
         // Reset form
@@ -480,6 +484,10 @@ export default function ShelfPage() {
       const data = await response.json()
 
       if (response.ok) {
+        // Show warning if quantity column doesn't exist
+        if (data.warning) {
+          alert(`Warning: ${data.warning}`)
+        }
         // Refresh books list
         await fetchBooks()
         // Reset form

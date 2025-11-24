@@ -13,7 +13,6 @@ const adminNavigation = [
 ]
 
 const userNavigation = [
-  { name: "Dashboard", href: "/user-dashboard", icon: Home },
   { name: "Search & Light", href: "/search", icon: Search },
   { name: "Notifications", href: "/user-notifications", icon: Mail },
 ]

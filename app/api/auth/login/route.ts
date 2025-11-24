@@ -8,7 +8,17 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 
 export async function POST(request: NextRequest) {
   try {
-    const { username, password } = await request.json()
+    let body
+    try {
+      body = await request.json()
+    } catch (parseError) {
+      return NextResponse.json(
+        { error: 'Invalid request format. Expected JSON.' },
+        { status: 400 }
+      )
+    }
+
+    const { username, password } = body
 
     if (!username || !password) {
       return NextResponse.json(

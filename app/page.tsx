@@ -47,6 +47,15 @@ export default function WelcomePage() {
         body: JSON.stringify(userLogin),
       })
 
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type')
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text()
+        console.error('Non-JSON response:', text)
+        setError('Server error: Invalid response format. Please try again.')
+        return
+      }
+
       const data = await response.json()
 
       if (response.ok) {
@@ -60,7 +69,12 @@ export default function WelcomePage() {
         setError(data.error || 'Invalid credentials')
       }
     } catch (err) {
-      setError('Login failed. Please try again.')
+      console.error('Login error:', err)
+      if (err instanceof Error) {
+        setError(`Login failed: ${err.message}`)
+      } else {
+        setError('Login failed. Please try again.')
+      }
     } finally {
       setIsLoading(false)
     }
