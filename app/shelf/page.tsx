@@ -97,9 +97,13 @@ export default function ShelfPage() {
   const [isAddBooksOpen, setIsAddBooksOpen] = useState(false)
   const [isEditShelfOpen, setIsEditShelfOpen] = useState(false)
   const [shelves, setShelves] = useState<Array<{ id: number, name: string, books: Array<{id: string, title: string, author: string, subject: string}> }>>([
-    { id: 1, name: "Shelf 1", books: [] }
+    { id: 1, name: "Shelf 1", books: [] },
+    { id: 2, name: "Shelf 2", books: [] },
+    { id: 3, name: "Shelf 3", books: [] },
+    { id: 4, name: "Shelf 4", books: [] }
   ])
   const [selectedShelfId, setSelectedShelfId] = useState<number>(1)
+  const [availableBooksShelfFilter, setAvailableBooksShelfFilter] = useState<string>("all")
 
   // Book entry/edit state
   const [currentBookTitle, setCurrentBookTitle] = useState("")
@@ -134,9 +138,25 @@ export default function ShelfPage() {
           author: book.author,
           subject: book.subject,
           catalog_no: book.catalog_no,
-          quantity: book.quantity || 1
+          quantity: book.quantity || 1,
+          shelf: book.shelf || "Shelf 1"
         }))
-        setShelves(prev => prev.map(s => ({ ...s, books: booksByShelf })))
+        
+        // Ensure all shelves 1-4 are always available
+        const allShelves = ["Shelf 1", "Shelf 2", "Shelf 3", "Shelf 4"]
+        
+        // Update shelves list with all 4 shelves, organizing books by shelf
+        const shelfArray = allShelves.map((shelfName, index) => {
+          const shelfId = index + 1
+          const shelfBooks = booksByShelf.filter((b: any) => (b.shelf || "Shelf 1") === shelfName)
+          return {
+            id: shelfId,
+            name: shelfName,
+            books: shelfBooks
+          }
+        })
+        
+        setShelves(shelfArray)
       }
     } catch (error) {
       console.error('Failed to fetch books:', error)
@@ -756,17 +776,67 @@ export default function ShelfPage() {
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {/* Available Books */}
                       <div className="border rounded-lg p-4">
-                        <h4 className="font-medium mb-3">Available Books</h4>
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-medium">Available Books</h4>
+                          <select
+                            value={availableBooksShelfFilter}
+                            onChange={(e) => setAvailableBooksShelfFilter(e.target.value)}
+                            className="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <option value="all">All Shelves</option>
+                            {shelves.map(s => (
+                              <option key={s.id} value={s.name}>{s.name}</option>
+                            ))}
+                          </select>
+                        </div>
                         <div className="space-y-2 max-h-72 overflow-auto">
-                          {availableBooks.map(b => (
-                            <div key={b.id} className="flex items-center justify-between p-2 border rounded">
-                              <div>
-                                <p className="font-medium text-sm">{b.title}</p>
-                                <p className="text-xs text-gray-600">by {b.author} • {b.subject}</p>
+                          {(() => {
+                            // Filter books based on selected shelf
+                            let filteredBooks: Array<{id: string, title: string, author: string, subject: string, shelf?: string}> = []
+                            
+                            if (availableBooksShelfFilter === "all") {
+                              // Show all books from database
+                              filteredBooks = books.map((book: any) => ({
+                                id: book.id.toString(),
+                                title: book.title,
+                                author: book.author,
+                                subject: book.subject,
+                                shelf: book.shelf || "Shelf 1"
+                              }))
+                            } else {
+                              // Filter from database books by shelf
+                              filteredBooks = books
+                                .filter((book: any) => (book.shelf || "Shelf 1") === availableBooksShelfFilter)
+                                .map((book: any) => ({
+                                  id: book.id.toString(),
+                                  title: book.title,
+                                  author: book.author,
+                                  subject: book.subject,
+                                  shelf: book.shelf || "Shelf 1"
+                                }))
+                            }
+                            
+                            if (filteredBooks.length === 0) {
+                              return (
+                                <div className="text-center py-8 text-gray-500 text-sm">
+                                  No books found in {availableBooksShelfFilter === "all" ? "any shelf" : availableBooksShelfFilter}
+                                </div>
+                              )
+                            }
+                            
+                            return filteredBooks.map(b => (
+                              <div key={b.id} className="flex items-center justify-between p-2 border rounded">
+                                <div className="flex-1">
+                                  <p className="font-medium text-sm">{b.title}</p>
+                                  <p className="text-xs text-gray-600">by {b.author} • {b.subject}</p>
+                                  {b.shelf && (
+                                    <p className="text-xs text-gray-500">Shelf: {b.shelf}</p>
+                                  )}
+                                </div>
+                                <Button size="sm" onClick={() => addExistingBookToShelf(b)}>Add</Button>
                               </div>
-                              <Button size="sm" onClick={() => addExistingBookToShelf(b)}>Add</Button>
-                            </div>
-                          ))}
+                            ))
+                          })()}
                         </div>
                       </div>
                       {/* Shelf Books CRUD */}
