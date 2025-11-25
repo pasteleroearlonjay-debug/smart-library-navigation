@@ -169,32 +169,6 @@ export default function DashboardPage() {
             </div>
           </CardContent>
         </Card>
-
-        {/* System Status */}
-        <Card>
-          <CardHeader>
-            <CardTitle>System Status</CardTitle>
-            <CardDescription>Real-time monitoring of library components</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
-                <div>
-                  <p className="font-medium">ESP32 LED System</p>
-                  <p className="text-sm text-gray-600">All 6 subject LEDs operational</p>
-                </div>
-                <Badge className="bg-green-100 text-green-800">Online</Badge>
-              </div>
-              <div className="flex items-center justify-between p-4 bg-orange-50 rounded-lg">
-                <div>
-                  <p className="font-medium">Email Service</p>
-                  <p className="text-sm text-gray-600">23 pending notifications</p>
-                </div>
-                <Badge className="bg-orange-100 text-orange-800">Processing</Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
           </div>
         </div>
       </div>

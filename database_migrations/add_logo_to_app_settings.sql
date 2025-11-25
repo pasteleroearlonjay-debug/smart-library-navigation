@@ -24,3 +24,5 @@ CREATE INDEX IF NOT EXISTS idx_app_settings_key ON app_settings(setting_key);
 COMMENT ON TABLE app_settings IS 'Application-wide settings including logo and other configuration data';
 
 
+
+

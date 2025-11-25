@@ -142,3 +142,5 @@ USING (bucket_id = 'book-covers' AND auth.role() = 'authenticated');
 - Supported formats: JPG, PNG, WebP, GIF
 
 
+
+

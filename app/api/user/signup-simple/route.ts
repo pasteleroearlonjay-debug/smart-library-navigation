@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Use Supabase Auth to sign up user
+    // Use Supabase Auth to sign up user (email confirmation handled by custom system)
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: email,
       password: password,
@@ -62,8 +62,8 @@ export async function POST(request: NextRequest) {
         data: {
           name: name,
           full_name: name
-        },
-        emailRedirectTo: `${getAppUrl()}/auth/callback`
+        }
+        // Note: emailRedirectTo removed - using custom email verification system instead
       }
     })
 

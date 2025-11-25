@@ -109,6 +109,10 @@ export default function ShelfPage() {
   const [currentBookQuantity, setCurrentBookQuantity] = useState("1")
   const [currentBookShelf, setCurrentBookShelf] = useState("Shelf 1")
   const [editingBookId, setEditingBookId] = useState<string | null>(null)
+  const [currentBookCover, setCurrentBookCover] = useState<File | null>(null)
+  const [currentBookCoverPreview, setCurrentBookCoverPreview] = useState<string | null>(null)
+  const [currentBookCoverUrl, setCurrentBookCoverUrl] = useState<string | null>(null)
+  const [isUploadingCover, setIsUploadingCover] = useState(false)
 
   // Fetch books from database on mount
   useEffect(() => {
@@ -320,6 +324,16 @@ export default function ShelfPage() {
       const adminToken = localStorage.getItem('adminToken')
       const adminUser = localStorage.getItem('adminUser')
 
+      // Upload cover photo if provided
+      let coverPhotoUrl = currentBookCoverUrl
+      if (currentBookCover && !coverPhotoUrl) {
+        const uploadedUrl = await uploadCoverPhoto(currentBookCover)
+        if (uploadedUrl) {
+          coverPhotoUrl = uploadedUrl
+          setCurrentBookCoverUrl(uploadedUrl)
+        }
+      }
+
       // Create book in database
       const response = await fetch('/api/books', {
         method: 'POST',
@@ -333,7 +347,7 @@ export default function ShelfPage() {
           author: currentBookAuthor.trim(),
           subject: currentBookSubject.trim(),
           catalog_no: currentBookCatalogNo.trim() || null,
-          cover_photo_url: coverPhotoUrl,
+          cover_photo_url: coverPhotoUrl || null,
           quantity: parseInt(currentBookQuantity) || 1,
           shelf: currentBookShelf || "Shelf 1"
         })
@@ -434,6 +448,9 @@ export default function ShelfPage() {
     setCurrentBookCatalogNo(catalogNo || "")
     setCurrentBookQuantity(quantity?.toString() || "1")
     setCurrentBookShelf(shelf || "Shelf 1")
+    setCurrentBookCoverUrl(coverPhotoUrl || null)
+    setCurrentBookCover(null)
+    setCurrentBookCoverPreview(coverPhotoUrl || null)
   }
 
   const saveEditBook = async () => {
@@ -452,6 +469,16 @@ export default function ShelfPage() {
         return
       }
 
+      // Upload cover photo if a new one was selected
+      let coverPhotoUrl = currentBookCoverUrl
+      if (currentBookCover) {
+        const uploadedUrl = await uploadCoverPhoto(currentBookCover, book.id)
+        if (uploadedUrl) {
+          coverPhotoUrl = uploadedUrl
+          setCurrentBookCoverUrl(uploadedUrl)
+        }
+      }
+
       // Update book in database
       const response = await fetch('/api/books', {
         method: 'PUT',
@@ -466,7 +493,7 @@ export default function ShelfPage() {
           author: currentBookAuthor.trim(),
           subject: currentBookSubject.trim(),
           catalog_no: currentBookCatalogNo.trim() || null,
-          cover_photo_url: null,
+          cover_photo_url: coverPhotoUrl || null,
           quantity: parseInt(currentBookQuantity) || 1,
           shelf: currentBookShelf || "Shelf 1"
         })
@@ -489,6 +516,9 @@ export default function ShelfPage() {
         setCurrentBookCatalogNo("")
         setCurrentBookQuantity("1")
         setCurrentBookShelf("Shelf 1")
+        setCurrentBookCover(null)
+        setCurrentBookCoverPreview(null)
+        setCurrentBookCoverUrl(null)
       } else {
         alert(`Error: ${data.error}`)
       }
@@ -844,7 +874,7 @@ export default function ShelfPage() {
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <Button size="sm" variant="outline" onClick={() => startEditBook(b.id, b.title, b.author, b.subject, (b as any).catalog_no, undefined, (b as any).quantity, (b as any).shelf)}>
+                                  <Button size="sm" variant="outline" onClick={() => startEditBook(b.id, b.title, b.author, b.subject, (b as any).catalog_no, (b as any).cover_photo_url || (b as any).coverPhotoUrl, (b as any).quantity, (b as any).shelf)}>
                                     <Edit className="h-3 w-3 mr-1" /> Edit
                                   </Button>
                                   <Button size="sm" variant="destructive" onClick={() => removeBookFromShelf(b.id)} disabled={isLoading}>
