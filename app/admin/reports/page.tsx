@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AdminSidebar } from "@/components/admin-sidebar"
+import * as XLSX from 'xlsx'
 
 interface BookDetail {
   id: number
@@ -129,7 +130,6 @@ export default function ReportsPage() {
   const handleExport = () => {
     if (!reportData) return
 
-    // Create CSV content
     const categories = [
       'Thesis',
       'Fiction',
@@ -145,39 +145,169 @@ export default function ReportsPage() {
       'TLE'
     ]
 
-    let csv = 'Category,Thesis,Fiction,Medicine,Agriculture,Computer Studies,Comics,Mathematics,Science,Social Studies,PEHM,Values Education,TLE,Total\n'
+    // Create a new workbook
+    const workbook = XLSX.utils.book_new()
+
+    // ============================================
+    // SHEET 1: SUMMARY
+    // ============================================
+    const summaryData: any[] = []
+    
+    // Header row
+    summaryData.push(['Library Report Summary', '', '', '', '', '', '', '', '', '', '', '', ''])
+    
+    // Empty row
+    summaryData.push([])
+    
+    // Report generation date
+    const generatedDate = new Date(reportData.generatedAt).toLocaleString()
+    summaryData.push(['Report Generated:', generatedDate, '', '', '', '', '', '', '', '', '', '', ''])
+    summaryData.push([])
+    
+    // Category headers
+    const headerRow = ['Category', ...categories, 'Total']
+    summaryData.push(headerRow)
     
     // Total number of books row
-    csv += 'Total number of books,'
-    categories.forEach((cat) => {
-      csv += `${reportData.categories[cat]?.total || 0},`
-    })
-    csv += `${reportData.totals.total}\n`
-
+    const totalRow = ['Total Number of Books', ...categories.map(cat => reportData.categories[cat]?.total || 0), reportData.totals.total]
+    summaryData.push(totalRow)
+    
     // Books borrowed row
-    csv += 'Books borrowed,'
-    categories.forEach((cat) => {
-      csv += `${reportData.categories[cat]?.borrowed || 0},`
-    })
-    csv += `${reportData.totals.borrowed}\n`
+    const borrowedRow = ['Books Borrowed', ...categories.map(cat => reportData.categories[cat]?.borrowed || 0), reportData.totals.borrowed]
+    summaryData.push(borrowedRow)
+    
+    // Remaining books row
+    const remainingRow = ['Books Available', ...categories.map(cat => reportData.categories[cat]?.remaining || 0), reportData.totals.remaining]
+    summaryData.push(remainingRow)
+    
+    // Create summary worksheet
+    const summarySheet = XLSX.utils.aoa_to_sheet(summaryData)
+    
+    // Set column widths for summary
+    summarySheet['!cols'] = [
+      { wch: 25 }, // Category column
+      ...categories.map(() => ({ wch: 15 })), // Category data columns
+      { wch: 12 } // Total column
+    ]
+    
+    // Add summary sheet to workbook
+    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary')
 
-    // Total (remaining) row
-    csv += 'Total,'
-    categories.forEach((cat) => {
-      csv += `${reportData.categories[cat]?.remaining || 0},`
+    // ============================================
+    // SHEET 2: DETAILED BOOKS BY CATEGORY
+    // ============================================
+    const detailedData: any[] = []
+    
+    // Header
+    detailedData.push(['Library Report - Detailed Book List', '', '', ''])
+    detailedData.push(['Report Generated:', generatedDate, '', ''])
+    detailedData.push([])
+    
+    // Process each category
+    categories.forEach((category) => {
+      const categoryData = reportData.categories[category]
+      
+      if (!categoryData || categoryData.books.length === 0) return
+      
+      // Category header
+      detailedData.push([`${category} (${categoryData.total} books)`, '', '', ''])
+      detailedData.push(['ID', 'Title', 'Author', 'Catalog No.'])
+      
+      // Book rows
+      categoryData.books.forEach((book) => {
+        detailedData.push([
+          book.id,
+          book.title,
+          book.author,
+          book.catalog_no || 'N/A'
+        ])
+      })
+      
+      // Category summary
+      detailedData.push([])
+      detailedData.push(['Category Summary:', '', '', ''])
+      detailedData.push(['Total Books:', categoryData.total, '', ''])
+      detailedData.push(['Borrowed:', categoryData.borrowed, '', ''])
+      detailedData.push(['Available:', categoryData.remaining, '', ''])
+      detailedData.push([]) // Empty row between categories
+      detailedData.push([]) // Extra spacing
     })
-    csv += `${reportData.totals.remaining}\n`
+    
+    // Create detailed worksheet
+    const detailedSheet = XLSX.utils.aoa_to_sheet(detailedData)
+    
+    // Set column widths for detailed sheet
+    detailedSheet['!cols'] = [
+      { wch: 10 }, // ID
+      { wch: 50 }, // Title
+      { wch: 30 }, // Author
+      { wch: 15 }  // Catalog No.
+    ]
+    
+    // Add detailed sheet to workbook
+    XLSX.utils.book_append_sheet(workbook, detailedSheet, 'Detailed Books')
 
-    // Download CSV
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `library-report-${new Date().toISOString().split('T')[0]}.csv`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    window.URL.revokeObjectURL(url)
+    // ============================================
+    // SHEET 3: STATISTICS BY CATEGORY
+    // ============================================
+    const statsData: any[] = []
+    
+    // Header
+    statsData.push(['Library Statistics by Category', '', '', ''])
+    statsData.push(['Report Generated:', generatedDate, '', ''])
+    statsData.push([])
+    statsData.push(['Category', 'Total Books', 'Borrowed', 'Available', 'Borrowed %'])
+    
+    // Statistics for each category
+    categories.forEach((category) => {
+      const categoryData = reportData.categories[category]
+      if (!categoryData) return
+      
+      const borrowedPercent = categoryData.total > 0 
+        ? ((categoryData.borrowed / categoryData.total) * 100).toFixed(2) + '%'
+        : '0%'
+      
+      statsData.push([
+        category,
+        categoryData.total,
+        categoryData.borrowed,
+        categoryData.remaining,
+        borrowedPercent
+      ])
+    })
+    
+    // Grand totals row
+    statsData.push([])
+    statsData.push([
+      'GRAND TOTAL',
+      reportData.totals.total,
+      reportData.totals.borrowed,
+      reportData.totals.remaining,
+      reportData.totals.total > 0 
+        ? ((reportData.totals.borrowed / reportData.totals.total) * 100).toFixed(2) + '%'
+        : '0%'
+    ])
+    
+    // Create statistics worksheet
+    const statsSheet = XLSX.utils.aoa_to_sheet(statsData)
+    
+    // Set column widths
+    statsSheet['!cols'] = [
+      { wch: 25 }, // Category
+      { wch: 15 }, // Total
+      { wch: 15 }, // Borrowed
+      { wch: 15 }, // Available
+      { wch: 15 }  // Percentage
+    ]
+    
+    // Add statistics sheet to workbook
+    XLSX.utils.book_append_sheet(workbook, statsSheet, 'Statistics')
+
+    // ============================================
+    // EXPORT EXCEL FILE
+    // ============================================
+    const fileName = `library-report-${new Date().toISOString().split('T')[0]}.xlsx`
+    XLSX.writeFile(workbook, fileName)
   }
 
   if (isLoading || showPinDialog) {
@@ -274,7 +404,7 @@ export default function ReportsPage() {
                   </Button>
                   <Button onClick={handleExport} className="bg-blue-600 hover:bg-blue-700">
                     <Download className="h-4 w-4 mr-2" />
-                    Export CSV
+                    Export Excel
                   </Button>
                 </div>
               </div>
