@@ -30,10 +30,37 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Get all books grouped by subject
-    const { data: books, error: booksError } = await supabase
+    // Get query parameters for date filtering
+    const { searchParams } = new URL(request.url)
+    const yearsExisted = searchParams.get('yearsExisted')
+    const publicationDateStart = searchParams.get('publicationDateStart')
+    const publicationDateEnd = searchParams.get('publicationDateEnd')
+
+    // Build query for books with all necessary fields
+    let booksQuery = supabase
       .from('books')
-      .select('id, subject, available')
+      .select('id, title, author, subject, available, catalog_no, created_at, publication_date')
+
+    // Apply date filters if provided
+    if (yearsExisted) {
+      const years = parseInt(yearsExisted)
+      if (!isNaN(years) && years > 0) {
+        // Calculate the cutoff date: books created at least 'years' years ago
+        const cutoffDate = new Date()
+        cutoffDate.setFullYear(cutoffDate.getFullYear() - years)
+        booksQuery = booksQuery.lte('created_at', cutoffDate.toISOString())
+      }
+    }
+
+    if (publicationDateStart) {
+      booksQuery = booksQuery.gte('publication_date', publicationDateStart)
+    }
+
+    if (publicationDateEnd) {
+      booksQuery = booksQuery.lte('publication_date', publicationDateEnd)
+    }
+
+    const { data: books, error: booksError } = await booksQuery
 
     if (booksError) {
       console.error('Error fetching books:', booksError)
@@ -72,8 +99,13 @@ export async function GET(request: NextRequest) {
       'TLE'
     ]
 
-    // Calculate statistics for each subject
-    const reportData: Record<string, { total: number; borrowed: number; remaining: number }> = {}
+    // Calculate statistics for each subject and group books
+    const reportData: Record<string, { 
+      total: number
+      borrowed: number
+      remaining: number
+      books: Array<{ id: number; title: string; author: string; catalog_no: string | null }>
+    }> = {}
 
     allSubjects.forEach((subject) => {
       const subjectBooks = (books || []).filter((book: any) => book.subject === subject)
@@ -83,10 +115,19 @@ export async function GET(request: NextRequest) {
       ).length
       const remaining = total - borrowed
 
+      // Get book details for this subject
+      const bookDetails = subjectBooks.map((book: any) => ({
+        id: book.id,
+        title: book.title,
+        author: book.author,
+        catalog_no: book.catalog_no || null
+      }))
+
       reportData[subject] = {
         total,
         borrowed,
-        remaining
+        remaining,
+        books: bookDetails
       }
     })
 

@@ -59,7 +59,8 @@ export default function SearchPage() {
       (book) =>
         book.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         book.author?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        book.subject?.toLowerCase().includes(searchQuery.toLowerCase()),
+        book.subject?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        book.catalog_no?.toLowerCase().includes(searchQuery.toLowerCase()),
     )
     setSearchResults(results)
   }

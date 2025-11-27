@@ -42,21 +42,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // In a real application, you should use bcrypt to compare passwords
-    // For now, we'll do a simple comparison (THIS IS NOT SECURE FOR PRODUCTION!)
-    // Install bcryptjs: npm install bcryptjs @types/bcryptjs
-    
-    // Simple password check (replace with bcrypt in production)
-    // For demo purposes, we'll accept the password if it matches
-    // In production, use: const isValidPassword = await bcrypt.compare(password, admin.password_hash)
-    
-    // For this demo, we check against common default passwords
-    // You should implement proper bcrypt comparison in production
-    // Default passwords: 'admin123' or 'superadmin123'
-    // Check if password matches either default password
-    const isValidPassword = password === 'admin123' || password === 'superadmin123' // TEMPORARY - Use bcrypt in production!
-    
-    // Note: In production, use: const isValidPassword = await bcrypt.compare(password, admin.password_hash)
+    // Compare password using bcrypt
+    const bcrypt = require('bcryptjs')
+    const isValidPassword = await bcrypt.compare(password, admin.password_hash)
 
     if (!isValidPassword) {
       return NextResponse.json(

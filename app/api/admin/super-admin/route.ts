@@ -87,9 +87,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // For now, use simple password hash (in production, use bcrypt)
-    // This matches the existing pattern in the codebase
-    const password_hash = '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi' // Default hash for demo
+    // Hash password using bcrypt
+    const bcrypt = require('bcryptjs')
+    const password_hash = await bcrypt.hash(password, 10)
 
     // Insert new admin
     const { data: newAdmin, error: insertError } = await supabase

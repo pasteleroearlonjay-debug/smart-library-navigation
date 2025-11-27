@@ -118,10 +118,37 @@ export default function ShelfPage() {
   const [currentBookCoverUrl, setCurrentBookCoverUrl] = useState<string | null>(null)
   const [isUploadingCover, setIsUploadingCover] = useState(false)
 
-  // Fetch books from database on mount
+  // Fetch books and shelves from database on mount
   useEffect(() => {
     fetchBooks()
+    fetchShelves()
   }, [])
+
+  const fetchShelves = async () => {
+    try {
+      const response = await fetch('/api/shelves')
+      const data = await response.json()
+      
+      if (response.ok && data.shelves) {
+        // Update shelves list with dynamic shelves from API
+        const shelfArray = data.shelves.map((shelf: any, index: number) => ({
+          id: shelf.id || index + 1,
+          name: shelf.name,
+          books: []
+        }))
+        
+        setShelves(shelfArray)
+        
+        // Update current shelf selection if needed
+        if (shelfArray.length > 0 && !shelfArray.find((s: any) => s.id === selectedShelfId)) {
+          setSelectedShelfId(shelfArray[0].id)
+          setCurrentBookShelf(shelfArray[0].name)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch shelves:', error)
+    }
+  }
 
   const fetchBooks = async () => {
     try {
@@ -142,21 +169,16 @@ export default function ShelfPage() {
           shelf: book.shelf || "Shelf 1"
         }))
         
-        // Ensure all shelves 1-4 are always available
-        const allShelves = ["Shelf 1", "Shelf 2", "Shelf 3", "Shelf 4"]
-        
-        // Update shelves list with all 4 shelves, organizing books by shelf
-        const shelfArray = allShelves.map((shelfName, index) => {
-          const shelfId = index + 1
-          const shelfBooks = booksByShelf.filter((b: any) => (b.shelf || "Shelf 1") === shelfName)
-          return {
-            id: shelfId,
-            name: shelfName,
-            books: shelfBooks
-          }
+        // Organize books by shelf using current shelves state
+        setShelves(prevShelves => {
+          return prevShelves.map(shelf => {
+            const shelfBooks = booksByShelf.filter((b: any) => (b.shelf || "Shelf 1") === shelf.name)
+            return {
+              ...shelf,
+              books: shelfBooks
+            }
+          })
         })
-        
-        setShelves(shelfArray)
       }
     } catch (error) {
       console.error('Failed to fetch books:', error)
@@ -892,10 +914,11 @@ export default function ShelfPage() {
                                 onChange={(e) => setCurrentBookShelf(e.target.value)}
                                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
                               >
-                                <option value="Shelf 1">Shelf 1</option>
-                                <option value="Shelf 2">Shelf 2</option>
-                                <option value="Shelf 3">Shelf 3</option>
-                                <option value="Shelf 4">Shelf 4</option>
+                                {shelves.map((shelf) => (
+                                  <option key={shelf.id} value={shelf.name}>
+                                    {shelf.name}
+                                  </option>
+                                ))}
                               </select>
                             </div>
                           </div>

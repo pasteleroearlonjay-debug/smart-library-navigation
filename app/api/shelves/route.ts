@@ -1,25 +1,104 @@
 import { NextRequest, NextResponse } from "next/server"
+import { createClient } from '@supabase/supabase-js'
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+const supabase = createClient(supabaseUrl, supabaseKey)
 
 // GET /api/shelves - Get all shelves
 export async function GET() {
   try {
-    // This would connect to your database
-    // For now, returning mock data that matches the frontend structure
-    const shelves = [
-      {
-        id: 1,
-        name: "Shelf 1",
-        title: "Default Subject Areas",
-        author: "System",
-        description: "Default shelf for the 6 subject areas with LED control",
-        books: []
+    // Get distinct shelf names from books table
+    const { data: books, error: booksError } = await supabase
+      .from('books')
+      .select('shelf')
+    
+    // Get shelves from shelves table
+    const { data: shelvesData, error: shelvesError } = await supabase
+      .from('shelves')
+      .select('name')
+      .order('name', { ascending: true })
+
+    if (booksError && shelvesError) {
+      console.error("Error fetching shelves:", booksError, shelvesError)
+      // Return default shelves if tables don't exist
+      return NextResponse.json({ 
+        shelves: [
+          { id: 1, name: "Shelf 1", books: [] },
+          { id: 2, name: "Shelf 2", books: [] },
+          { id: 3, name: "Shelf 3", books: [] },
+          { id: 4, name: "Shelf 4", books: [] }
+        ]
+      })
+    }
+
+    // Collect unique shelf names
+    const shelfNames = new Set<string>()
+    
+    // Add shelves from books table
+    if (books) {
+      books.forEach((book: any) => {
+        if (book.shelf) {
+          shelfNames.add(book.shelf)
+        }
+      })
+    }
+    
+    // Add shelves from shelves table
+    if (shelvesData) {
+      shelvesData.forEach((shelf: any) => {
+        if (shelf.name) {
+          shelfNames.add(shelf.name)
+        }
+      })
+    }
+
+    // Convert to array and sort
+    const uniqueShelves = Array.from(shelfNames).sort((a, b) => {
+      // Extract numbers for proper sorting (Shelf 1, Shelf 2, etc.)
+      const numA = parseInt(a.replace(/\D/g, '')) || 0
+      const numB = parseInt(b.replace(/\D/g, '')) || 0
+      return numA - numB
+    })
+
+    // Format as expected by frontend
+    const shelves = uniqueShelves.map((name, index) => ({
+      id: index + 1,
+      name: name,
+      books: []
+    }))
+
+    // Ensure at least Shelf 1-4 exist
+    const defaultShelves = ["Shelf 1", "Shelf 2", "Shelf 3", "Shelf 4"]
+    defaultShelves.forEach((defaultShelf, index) => {
+      if (!shelfNames.has(defaultShelf)) {
+        shelves.push({
+          id: shelves.length + 1,
+          name: defaultShelf,
+          books: []
+        })
       }
-    ]
+    })
+
+    // Sort again after adding defaults
+    shelves.sort((a, b) => {
+      const numA = parseInt(a.name.replace(/\D/g, '')) || 0
+      const numB = parseInt(b.name.replace(/\D/g, '')) || 0
+      return numA - numB
+    })
 
     return NextResponse.json({ shelves })
   } catch (error) {
     console.error("Error fetching shelves:", error)
-    return NextResponse.json({ error: "Failed to fetch shelves" }, { status: 500 })
+    // Return default shelves on error
+    return NextResponse.json({ 
+      shelves: [
+        { id: 1, name: "Shelf 1", books: [] },
+        { id: 2, name: "Shelf 2", books: [] },
+        { id: 3, name: "Shelf 3", books: [] },
+        { id: 4, name: "Shelf 4", books: [] }
+      ]
+    })
   }
 }
 

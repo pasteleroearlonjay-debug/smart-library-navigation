@@ -42,7 +42,8 @@ export default function BooksPage() {
       filtered = filtered.filter(book =>
         book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         book.author.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        book.subject.toLowerCase().includes(searchQuery.toLowerCase())
+        book.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        book.catalog_no?.toLowerCase().includes(searchQuery.toLowerCase())
       )
     }
 
