@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { BarChart3, RefreshCw, Download, Lock, AlertCircle, ChevronDown, ChevronUp, Filter } from 'lucide-react'
+import { BarChart3, RefreshCw, Download, Lock, AlertCircle, ChevronDown, ChevronUp, Filter, BookOpen, BookCheck, BookMarked, CheckCircle, XCircle } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -538,62 +538,179 @@ export default function ReportsPage() {
               </CardContent>
             </Card>
 
-            {/* Books by Subject - Expandable Sections */}
+            {/* Books by Subject - Visual Cards */}
             {reportData && (
               <Card className="mt-6">
                 <CardHeader>
-                  <CardTitle>Books by Subject</CardTitle>
-                  <CardDescription>Click on a subject to view all books in that category</CardDescription>
+                  <CardTitle className="flex items-center gap-2">
+                    <BookOpen className="h-5 w-5 text-blue-600" />
+                    Books by Subject
+                  </CardTitle>
+                  <CardDescription>Click on any subject card to view detailed book listings</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-2">
+                  {/* Quick Stats Overview */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <BookOpen className="h-5 w-5 text-blue-600" />
+                        <span className="text-sm font-medium text-blue-900">Total Books</span>
+                      </div>
+                      <p className="text-2xl font-bold text-blue-700">{reportData.totals.total}</p>
+                    </div>
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <BookCheck className="h-5 w-5 text-orange-600" />
+                        <span className="text-sm font-medium text-orange-900">Borrowed</span>
+                      </div>
+                      <p className="text-2xl font-bold text-orange-700">{reportData.totals.borrowed}</p>
+                    </div>
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                        <span className="text-sm font-medium text-green-900">Available</span>
+                      </div>
+                      <p className="text-2xl font-bold text-green-700">{reportData.totals.remaining}</p>
+                    </div>
+                  </div>
+
+                  {/* Subject Cards Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {categories.map((cat) => {
                       const categoryData = reportData.categories[cat]
                       const isExpanded = expandedSubjects.has(cat)
                       const books = categoryData?.books || []
+                      const total = categoryData?.total || 0
+                      const borrowed = categoryData?.borrowed || 0
+                      const available = categoryData?.remaining || 0
+                      const borrowedPercent = total > 0 ? Math.round((borrowed / total) * 100) : 0
+                      
+                      // Color coding based on availability
+                      const getStatusColor = () => {
+                        if (total === 0) return 'gray'
+                        if (available === 0) return 'red'
+                        if (borrowedPercent > 70) return 'orange'
+                        return 'green'
+                      }
+                      
+                      const statusColor = getStatusColor()
+                      const colorClasses = {
+                        gray: 'bg-gray-50 border-gray-200',
+                        red: 'bg-red-50 border-red-200',
+                        orange: 'bg-orange-50 border-orange-200',
+                        green: 'bg-green-50 border-green-200'
+                      }
 
                       return (
-                        <div key={cat} className="border rounded-lg overflow-hidden">
+                        <div 
+                          key={cat} 
+                          className={`border-2 rounded-lg overflow-hidden transition-all hover:shadow-md cursor-pointer ${colorClasses[statusColor as keyof typeof colorClasses]}`}
+                        >
                           <button
                             onClick={() => toggleSubject(cat)}
-                            className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+                            className="w-full p-4 text-left"
                           >
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-start justify-between mb-3">
+                              <h3 className="font-bold text-lg text-gray-900 pr-2">{cat}</h3>
                               {isExpanded ? (
-                                <ChevronUp className="h-5 w-5 text-gray-500" />
+                                <ChevronUp className="h-5 w-5 text-gray-500 flex-shrink-0" />
                               ) : (
-                                <ChevronDown className="h-5 w-5 text-gray-500" />
+                                <ChevronDown className="h-5 w-5 text-gray-500 flex-shrink-0" />
                               )}
-                              <div className="text-left">
-                                <h3 className="font-semibold text-lg">{cat}</h3>
-                                <p className="text-sm text-gray-600">
-                                  {categoryData?.total || 0} total books • {categoryData?.borrowed || 0} borrowed • {categoryData?.remaining || 0} available
-                                </p>
+                            </div>
+                            
+                            {/* Quick Stats */}
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-gray-600 flex items-center gap-1">
+                                  <BookOpen className="h-4 w-4" />
+                                  Total
+                                </span>
+                                <span className="font-semibold text-gray-900">{total}</span>
                               </div>
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-orange-600 flex items-center gap-1">
+                                  <BookCheck className="h-4 w-4" />
+                                  Borrowed
+                                </span>
+                                <span className="font-semibold text-orange-700">{borrowed}</span>
+                              </div>
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-green-600 flex items-center gap-1">
+                                  <CheckCircle className="h-4 w-4" />
+                                  Available
+                                </span>
+                                <span className="font-semibold text-green-700">{available}</span>
+                              </div>
+                              
+                              {/* Progress Bar */}
+                              {total > 0 && (
+                                <div className="mt-3">
+                                  <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                                    <span>Usage</span>
+                                    <span className="font-medium">{borrowedPercent}%</span>
+                                  </div>
+                                  <div className="w-full bg-gray-200 rounded-full h-2">
+                                    <div 
+                                      className={`h-2 rounded-full transition-all ${
+                                        statusColor === 'red' ? 'bg-red-500' :
+                                        statusColor === 'orange' ? 'bg-orange-500' :
+                                        'bg-green-500'
+                                      }`}
+                                      style={{ width: `${borrowedPercent}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </button>
+                          
+                          {/* Expanded Book List */}
                           {isExpanded && (
-                            <div className="p-4 border-t bg-gray-50">
+                            <div className="border-t bg-white p-4 max-h-96 overflow-y-auto">
                               {books.length > 0 ? (
-                                <div className="space-y-2">
-                                  <select
-                                    className="w-full p-2 border rounded-md bg-white"
-                                    size={Math.min(books.length, 10)}
-                                    onChange={() => {}}
-                                  >
-                                    {books.map((book) => (
-                                      <option key={book.id} value={book.id}>
-                                        {book.title} by {book.author}
-                                        {book.catalog_no && ` (Catalog: ${book.catalog_no})`}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <p className="text-xs text-gray-500 mt-2">
-                                    Showing {books.length} book{books.length !== 1 ? 's' : ''} in {cat}
-                                  </p>
+                                <div className="space-y-3">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <h4 className="font-semibold text-sm text-gray-700">
+                                      Book List ({books.length})
+                                    </h4>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Table>
+                                      <TableHeader>
+                                        <TableRow className="bg-gray-100">
+                                          <TableHead className="w-12 text-xs">ID</TableHead>
+                                          <TableHead className="text-xs">Title</TableHead>
+                                          <TableHead className="text-xs">Author</TableHead>
+                                          <TableHead className="text-xs">Catalog</TableHead>
+                                        </TableRow>
+                                      </TableHeader>
+                                      <TableBody>
+                                        {books.map((book) => (
+                                          <TableRow key={book.id} className="hover:bg-gray-50">
+                                            <TableCell className="text-xs font-mono text-gray-500">
+                                              {book.id}
+                                            </TableCell>
+                                            <TableCell className="text-xs font-medium">
+                                              {book.title}
+                                            </TableCell>
+                                            <TableCell className="text-xs text-gray-600">
+                                              {book.author}
+                                            </TableCell>
+                                            <TableCell className="text-xs text-gray-500">
+                                              {book.catalog_no || '—'}
+                                            </TableCell>
+                                          </TableRow>
+                                        ))}
+                                      </TableBody>
+                                    </Table>
+                                  </div>
                                 </div>
                               ) : (
-                                <p className="text-gray-500 text-sm">No books found in this category.</p>
+                                <div className="text-center py-8">
+                                  <XCircle className="h-12 w-12 text-gray-300 mx-auto mb-2" />
+                                  <p className="text-sm text-gray-500">No books in this category</p>
+                                </div>
                               )}
                             </div>
                           )}
