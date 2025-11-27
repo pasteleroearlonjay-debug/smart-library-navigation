@@ -34,10 +34,10 @@ CREATE INDEX IF NOT EXISTS idx_admins_is_active ON admins(is_active);
 -- Default admin credentials:
 -- Username: admin
 -- Password: admin123 (Please change this after first login!)
--- The password hash below is for 'admin123' using bcrypt
+-- The password hash below is for 'admin123' using bcryptjs (Node.js compatible)
 
 INSERT INTO admins (username, email, password_hash, full_name, role, is_active) VALUES
-('admin', 'admin@library.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'System Administrator', 'super_admin', true)
+('admin', 'admin@library.com', '$2b$10$llP6ix0fMHEvgQZGaEyOWeVaNCcZs6Xwc9urLj7b/LWIuu6ntBWh.', 'System Administrator', 'super_admin', true)
 ON CONFLICT (username) DO UPDATE SET
     email = EXCLUDED.email,
     full_name = EXCLUDED.full_name,
@@ -46,8 +46,9 @@ ON CONFLICT (username) DO UPDATE SET
     updated_at = CURRENT_TIMESTAMP;
 
 -- Insert superadmin user
+-- Password: superadmin123
 INSERT INTO admins (username, email, password_hash, full_name, role, is_active) VALUES
-('superadmin', 'superadmin@psau.edu.ph', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Super Administrator', 'super_admin', true)
+('superadmin', 'superadmin@psau.edu.ph', '$2b$10$slVcdr2w6R6le3GCRh8yHeC1q9OrnIrfQYzllEpVyRj5fcuZEmaQS', 'Super Administrator', 'super_admin', true)
 ON CONFLICT (username) DO UPDATE SET
     email = EXCLUDED.email,
     full_name = EXCLUDED.full_name,
@@ -56,9 +57,10 @@ ON CONFLICT (username) DO UPDATE SET
     updated_at = CURRENT_TIMESTAMP;
 
 -- Insert additional admin users (optional)
+-- Password for both: admin123
 INSERT INTO admins (username, email, password_hash, full_name, role, is_active) VALUES
-('librarian1', 'librarian1@library.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Head Librarian', 'admin', true),
-('librarian2', 'librarian2@library.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Assistant Librarian', 'admin', true)
+('librarian1', 'librarian1@library.com', '$2b$10$llP6ix0fMHEvgQZGaEyOWeVaNCcZs6Xwc9urLj7b/LWIuu6ntBWh.', 'Head Librarian', 'admin', true),
+('librarian2', 'librarian2@library.com', '$2b$10$llP6ix0fMHEvgQZGaEyOWeVaNCcZs6Xwc9urLj7b/LWIuu6ntBWh.', 'Assistant Librarian', 'admin', true)
 ON CONFLICT (username) DO NOTHING;
 
 -- ========================================

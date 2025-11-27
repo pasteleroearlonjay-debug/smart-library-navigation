@@ -8,6 +8,25 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 // GET /api/settings - Get application settings (including logo)
 export async function GET(request: NextRequest) {
   try {
+    // Check if Supabase is configured
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('Supabase not configured')
+      // Return empty response instead of error for missing settings
+      const { searchParams } = new URL(request.url)
+      const key = searchParams.get('key')
+      if (key) {
+        return NextResponse.json({
+          success: false,
+          key: key,
+          value: null
+        })
+      }
+      return NextResponse.json({
+        success: true,
+        settings: {}
+      })
+    }
+
     // Get all settings or a specific setting
     const { searchParams } = new URL(request.url)
     const key = searchParams.get('key')
@@ -21,11 +40,34 @@ export async function GET(request: NextRequest) {
     const { data: settings, error } = await query
 
     if (error) {
+      // If table doesn't exist, return empty response instead of error
+      if (error.code === '42P01' || error.message?.includes('does not exist')) {
+        console.warn('app_settings table does not exist yet')
+        if (key) {
+          return NextResponse.json({
+            success: false,
+            key: key,
+            value: null
+          })
+        }
+        return NextResponse.json({
+          success: true,
+          settings: {}
+        })
+      }
       console.error('Error fetching settings:', error)
-      return NextResponse.json(
-        { error: 'Failed to fetch settings' },
-        { status: 500 }
-      )
+      // Return empty response for other errors too to prevent UI breakage
+      if (key) {
+        return NextResponse.json({
+          success: false,
+          key: key,
+          value: null
+        })
+      }
+      return NextResponse.json({
+        success: true,
+        settings: {}
+      })
     }
 
     // If requesting a specific key, return just the value
@@ -34,6 +76,15 @@ export async function GET(request: NextRequest) {
         success: true,
         key: settings[0].setting_key,
         value: settings[0].setting_value
+      })
+    }
+
+    // If requesting a specific key but not found
+    if (key && (!settings || settings.length === 0)) {
+      return NextResponse.json({
+        success: false,
+        key: key,
+        value: null
       })
     }
 
@@ -52,10 +103,20 @@ export async function GET(request: NextRequest) {
 
   } catch (error) {
     console.error('Settings API error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    // Return empty response instead of error to prevent UI breakage
+    const { searchParams } = new URL(request.url)
+    const key = searchParams.get('key')
+    if (key) {
+      return NextResponse.json({
+        success: false,
+        key: key,
+        value: null
+      })
+    }
+    return NextResponse.json({
+      success: true,
+      settings: {}
+    })
   }
 }
 
