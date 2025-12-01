@@ -9,10 +9,84 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Lightbulb, Zap, Wifi, AlertTriangle, CheckCircle, Activity, Calculator, Atom, Globe, Heart, Shield, Wrench, Plus, X, Edit, Trash2, BookPlus } from 'lucide-react'
+import { Checkbox } from "@/components/ui/checkbox"
+import { DndContext, DragOverlay, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragStartEvent, DragEndEvent, DragOverEvent } from "@dnd-kit/core"
+import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import { Lightbulb, Zap, Wifi, AlertTriangle, CheckCircle, Activity, Calculator, Atom, Globe, Heart, Shield, Wrench, Plus, X, Edit, Trash2, BookPlus, Search, GripVertical } from 'lucide-react'
 import { AdminSidebar } from "@/components/admin-sidebar"
 import { SUBJECTS } from "@/lib/subjects"
 import { useRouter } from "next/navigation"
+
+// Sortable Book Item Component
+function SortableBookItem({ 
+  book, 
+  bookData, 
+  isSelected, 
+  onSelect, 
+  onEdit, 
+  onDelete, 
+  isLoading 
+}: { 
+  book: { id: string, title: string, author: string, subject: string, catalog_no?: string },
+  bookData?: any,
+  isSelected: boolean,
+  onSelect: () => void,
+  onEdit: () => void,
+  onDelete: () => void,
+  isLoading: boolean
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: book.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-2 p-2 border rounded hover:bg-gray-50"
+    >
+      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
+        <GripVertical className="h-4 w-4 text-gray-400" />
+      </div>
+      <Checkbox
+        checked={isSelected}
+        onCheckedChange={onSelect}
+      />
+      <div className="flex items-center gap-3 flex-1">
+        <div className="w-12 h-16 bg-gray-200 rounded border flex items-center justify-center">
+          <BookPlus className="h-6 w-6 text-gray-400" />
+        </div>
+        <div className="flex-1">
+          <p className="font-medium text-sm">{book.title}</p>
+          <p className="text-xs text-gray-600">by {book.author} • {book.subject}</p>
+          {book.catalog_no && (
+            <p className="text-xs text-gray-500">Catalog No: {book.catalog_no}</p>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button size="sm" variant="outline" onClick={onEdit}>
+          <Edit className="h-3 w-3 mr-1" /> Edit
+        </Button>
+        <Button size="sm" variant="destructive" onClick={onDelete} disabled={isLoading}>
+          <Trash2 className="h-3 w-3 mr-1" /> Delete
+        </Button>
+      </div>
+    </div>
+  )
+}
 
 export default function ShelfPage() {
   const router = useRouter()
@@ -104,6 +178,21 @@ export default function ShelfPage() {
   ])
   const [selectedShelfId, setSelectedShelfId] = useState<number>(1)
   const [availableBooksShelfFilter, setAvailableBooksShelfFilter] = useState<string>("all")
+  
+  // Search and multi-select state
+  const [searchQuery, setSearchQuery] = useState("")
+  const [shelfSearchQuery, setShelfSearchQuery] = useState("")
+  const [selectedBooks, setSelectedBooks] = useState<Set<string>>(new Set())
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const [dragOverShelf, setDragOverShelf] = useState<number | null>(null)
+  
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
 
   // Book entry/edit state
   const [currentBookTitle, setCurrentBookTitle] = useState("")
@@ -589,6 +678,192 @@ export default function ShelfPage() {
     setIsEditShelfOpen(false)
   }
 
+  // Search filter function
+  const filterBooksBySearch = (bookList: Array<{id: string, title: string, author: string, subject: string, shelf?: string, catalog_no?: string}>) => {
+    if (!searchQuery.trim()) return bookList
+    const query = searchQuery.toLowerCase().trim()
+    return bookList.filter(book => 
+      book.title.toLowerCase().includes(query) ||
+      book.author.toLowerCase().includes(query) ||
+      book.subject.toLowerCase().includes(query) ||
+      (book.catalog_no && book.catalog_no.toLowerCase().includes(query))
+    )
+  }
+
+  // Toggle book selection
+  const toggleBookSelection = (bookId: string) => {
+    setSelectedBooks(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(bookId)) {
+        newSet.delete(bookId)
+      } else {
+        newSet.add(bookId)
+      }
+      return newSet
+    })
+  }
+
+  // Select all/none
+  const toggleSelectAll = (bookIds: string[]) => {
+    if (selectedBooks.size === bookIds.length) {
+      setSelectedBooks(new Set())
+    } else {
+      setSelectedBooks(new Set(bookIds))
+    }
+  }
+
+  // Batch delete
+  const batchDeleteBooks = async () => {
+    if (selectedBooks.size === 0) return
+    if (!confirm(`Are you sure you want to delete ${selectedBooks.size} book(s)? This action cannot be undone.`)) {
+      return
+    }
+
+    try {
+      setIsLoading(true)
+      const adminToken = localStorage.getItem('adminToken')
+      const adminUser = localStorage.getItem('adminUser')
+
+      const deletePromises = Array.from(selectedBooks).map(async (bookId) => {
+        const book = books.find(b => b.id.toString() === bookId || b.id === parseInt(bookId))
+        if (book) {
+          const response = await fetch(`/api/books?id=${book.id}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${adminToken}`,
+              'x-admin-user': adminUser || ''
+            }
+          })
+          return response.ok
+        }
+        return false
+      })
+
+      await Promise.all(deletePromises)
+      setSelectedBooks(new Set())
+      await fetchBooks()
+    } catch (error) {
+      console.error('Error deleting books:', error)
+      alert('Failed to delete books. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Batch move to shelf
+  const batchMoveToShelf = async (targetShelfName: string) => {
+    if (selectedBooks.size === 0) return
+
+    try {
+      setIsLoading(true)
+      const adminToken = localStorage.getItem('adminToken')
+      const adminUser = localStorage.getItem('adminUser')
+
+      const updatePromises = Array.from(selectedBooks).map(async (bookId) => {
+        const book = books.find(b => b.id.toString() === bookId || b.id === parseInt(bookId))
+        if (book) {
+          const response = await fetch('/api/books', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${adminToken}`,
+              'x-admin-user': adminUser || ''
+            },
+            body: JSON.stringify({
+              id: book.id,
+              title: book.title,
+              author: book.author,
+              subject: book.subject,
+              catalog_no: book.catalog_no || null,
+              cover_photo_url: book.cover_photo_url || null,
+              quantity: book.quantity || 1,
+              shelf: targetShelfName
+            })
+          })
+          return response.ok
+        }
+        return false
+      })
+
+      await Promise.all(updatePromises)
+      setSelectedBooks(new Set())
+      await fetchBooks()
+    } catch (error) {
+      console.error('Error moving books:', error)
+      alert('Failed to move books. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Drag handlers
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as string)
+  }
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+    setActiveId(null)
+    setDragOverShelf(null)
+
+    if (!over) return
+
+    const bookId = active.id as string
+    const targetShelfId = over.id as number
+
+    // Find the book
+    const book = books.find(b => b.id.toString() === bookId || b.id === parseInt(bookId))
+    if (!book) return
+
+    // Find target shelf
+    const targetShelf = shelves.find(s => s.id === targetShelfId)
+    if (!targetShelf) return
+
+    // Don't update if already on that shelf
+    if (book.shelf === targetShelf.name) return
+
+    try {
+      setIsLoading(true)
+      const adminToken = localStorage.getItem('adminToken')
+      const adminUser = localStorage.getItem('adminUser')
+
+      const response = await fetch('/api/books', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${adminToken}`,
+          'x-admin-user': adminUser || ''
+        },
+        body: JSON.stringify({
+          id: book.id,
+          title: book.title,
+          author: book.author,
+          subject: book.subject,
+          catalog_no: book.catalog_no || null,
+          cover_photo_url: book.cover_photo_url || null,
+          quantity: book.quantity || 1,
+          shelf: targetShelf.name
+        })
+      })
+
+      if (response.ok) {
+        await fetchBooks()
+      }
+    } catch (error) {
+      console.error('Error moving book:', error)
+      alert('Failed to move book. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleDragOver = (event: DragOverEvent) => {
+    const { over } = event
+    if (over && typeof over.id === 'number') {
+      setDragOverShelf(over.id)
+    }
+  }
+
   const renderSubjectGrid = () => {
     // For Shelf 1, show the original static subjects with their default book counts
     if (selectedShelfId === 1) {
@@ -811,10 +1086,53 @@ export default function ShelfPage() {
                             ))}
                           </select>
                         </div>
+                        {/* Search Bar */}
+                        <div className="mb-3">
+                          <div className="relative">
+                            <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
+                            <Input
+                              placeholder="Search by title, author, subject, or catalog number..."
+                              value={searchQuery}
+                              onChange={(e) => setSearchQuery(e.target.value)}
+                              className="pl-8"
+                            />
+                          </div>
+                        </div>
+                        {/* Batch Actions Toolbar */}
+                        {selectedBooks.size > 0 && (
+                          <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded flex items-center justify-between">
+                            <span className="text-sm font-medium text-blue-900">
+                              {selectedBooks.size} book(s) selected
+                            </span>
+                            <div className="flex gap-2">
+                              <select
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    batchMoveToShelf(e.target.value)
+                                    e.target.value = ""
+                                  }
+                                }}
+                                className="text-xs px-2 py-1 border rounded"
+                                defaultValue=""
+                              >
+                                <option value="">Move to shelf...</option>
+                                {shelves.map(s => (
+                                  <option key={s.id} value={s.name}>{s.name}</option>
+                                ))}
+                              </select>
+                              <Button size="sm" variant="destructive" onClick={batchDeleteBooks}>
+                                <Trash2 className="h-3 w-3 mr-1" /> Delete
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => setSelectedBooks(new Set())}>
+                                Clear
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                         <div className="space-y-2 max-h-72 overflow-auto">
                           {(() => {
                             // Filter books based on selected shelf
-                            let filteredBooks: Array<{id: string, title: string, author: string, subject: string, shelf?: string}> = []
+                            let filteredBooks: Array<{id: string, title: string, author: string, subject: string, shelf?: string, catalog_no?: string}> = []
                             
                             if (availableBooksShelfFilter === "all") {
                               // Show all books from database
@@ -823,7 +1141,8 @@ export default function ShelfPage() {
                                 title: book.title,
                                 author: book.author,
                                 subject: book.subject,
-                                shelf: book.shelf || "Shelf 1"
+                                shelf: book.shelf || "Shelf 1",
+                                catalog_no: book.catalog_no
                               }))
                             } else {
                               // Filter from database books by shelf
@@ -834,36 +1153,135 @@ export default function ShelfPage() {
                                   title: book.title,
                                   author: book.author,
                                   subject: book.subject,
-                                  shelf: book.shelf || "Shelf 1"
+                                  shelf: book.shelf || "Shelf 1",
+                                  catalog_no: book.catalog_no
                                 }))
                             }
+                            
+                            // Apply search filter
+                            filteredBooks = filterBooksBySearch(filteredBooks)
                             
                             if (filteredBooks.length === 0) {
                               return (
                                 <div className="text-center py-8 text-gray-500 text-sm">
-                                  No books found in {availableBooksShelfFilter === "all" ? "any shelf" : availableBooksShelfFilter}
+                                  No books found {searchQuery ? `matching "${searchQuery}"` : `in ${availableBooksShelfFilter === "all" ? "any shelf" : availableBooksShelfFilter}`}
                                 </div>
                               )
                             }
                             
-                            return filteredBooks.map(b => (
-                              <div key={b.id} className="flex items-center justify-between p-2 border rounded">
-                                <div className="flex-1">
-                                  <p className="font-medium text-sm">{b.title}</p>
-                                  <p className="text-xs text-gray-600">by {b.author} • {b.subject}</p>
-                                  {b.shelf && (
-                                    <p className="text-xs text-gray-500">Shelf: {b.shelf}</p>
-                                  )}
+                            return (
+                              <>
+                                <div className="flex items-center gap-2 mb-2 pb-2 border-b">
+                                  <Checkbox
+                                    checked={selectedBooks.size === filteredBooks.length && filteredBooks.length > 0}
+                                    onCheckedChange={() => toggleSelectAll(filteredBooks.map(b => b.id))}
+                                  />
+                                  <span className="text-xs text-gray-600">Select all</span>
                                 </div>
-                                <Button size="sm" onClick={() => addExistingBookToShelf(b)}>Add</Button>
-                              </div>
-                            ))
+                                {filteredBooks.map(b => {
+                                  const book = books.find((bk: any) => bk.id.toString() === b.id)
+                                  return (
+                                    <div key={b.id} className="flex items-center gap-2 p-2 border rounded hover:bg-gray-50">
+                                      <Checkbox
+                                        checked={selectedBooks.has(b.id)}
+                                        onCheckedChange={() => toggleBookSelection(b.id)}
+                                      />
+                                      <div className="flex-1">
+                                        <p className="font-medium text-sm">{b.title}</p>
+                                        <p className="text-xs text-gray-600">by {b.author} • {b.subject}</p>
+                                        {b.shelf && (
+                                          <p className="text-xs text-gray-500">Shelf: {b.shelf}</p>
+                                        )}
+                                        {b.catalog_no && (
+                                          <p className="text-xs text-gray-500">Catalog: {b.catalog_no}</p>
+                                        )}
+                                      </div>
+                                      <div className="flex gap-1">
+                                        <Button 
+                                          size="sm" 
+                                          variant="outline"
+                                          onClick={() => {
+                                            if (book) {
+                                              startEditBook(
+                                                b.id,
+                                                book.title,
+                                                book.author,
+                                                book.subject,
+                                                book.catalog_no,
+                                                book.cover_photo_url,
+                                                book.quantity,
+                                                book.shelf
+                                              )
+                                            }
+                                          }}
+                                        >
+                                          <Edit className="h-3 w-3 mr-1" /> Edit
+                                        </Button>
+                                        <Button 
+                                          size="sm" 
+                                          variant="destructive"
+                                          onClick={() => removeBookFromShelf(b.id)}
+                                          disabled={isLoading}
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </>
+                            )
                           })()}
                         </div>
                       </div>
                       {/* Shelf Books CRUD */}
                       <div className="border rounded-lg p-4">
-                        <h4 className="font-medium mb-3">Books in {shelves.find(s => s.id === selectedShelfId)?.name}</h4>
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-medium">Books in {shelves.find(s => s.id === selectedShelfId)?.name}</h4>
+                        </div>
+                        {/* Search Bar for Shelf Books */}
+                        <div className="mb-3">
+                          <div className="relative">
+                            <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
+                            <Input
+                              placeholder="Search books in this shelf..."
+                              value={shelfSearchQuery}
+                              onChange={(e) => setShelfSearchQuery(e.target.value)}
+                              className="pl-8"
+                            />
+                          </div>
+                        </div>
+                        {/* Batch Actions Toolbar for Shelf Books */}
+                        {selectedBooks.size > 0 && (
+                          <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded flex items-center justify-between">
+                            <span className="text-sm font-medium text-blue-900">
+                              {selectedBooks.size} book(s) selected
+                            </span>
+                            <div className="flex gap-2">
+                              <select
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    batchMoveToShelf(e.target.value)
+                                    e.target.value = ""
+                                  }
+                                }}
+                                className="text-xs px-2 py-1 border rounded"
+                                defaultValue=""
+                              >
+                                <option value="">Move to shelf...</option>
+                                {shelves.map(s => (
+                                  <option key={s.id} value={s.name}>{s.name}</option>
+                                ))}
+                              </select>
+                              <Button size="sm" variant="destructive" onClick={batchDeleteBooks}>
+                                <Trash2 className="h-3 w-3 mr-1" /> Delete
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => setSelectedBooks(new Set())}>
+                                Clear
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                         <div className="space-y-3">
                           {/* Entry / Edit Form */}
                           <div className="grid grid-cols-2 gap-3">
@@ -950,33 +1368,96 @@ export default function ShelfPage() {
                             )}
                           </div>
 
-                          {/* Existing Books List */}
-                          <div className="space-y-2 max-h-64 overflow-auto">
-                            {shelves.find(s => s.id === selectedShelfId)?.books.map(b => (
-                              <div key={b.id} className="flex items-center justify-between p-2 border rounded">
-                                <div className="flex items-center gap-3 flex-1">
-                                  <div className="w-12 h-16 bg-gray-200 rounded border flex items-center justify-center">
-                                    <BookPlus className="h-6 w-6 text-gray-400" />
-                                  </div>
-                                  <div className="flex-1">
-                                    <p className="font-medium text-sm">{b.title}</p>
-                                    <p className="text-xs text-gray-600">by {b.author} • {b.subject}</p>
-                                    {(b as any).catalog_no && (
-                                      <p className="text-xs text-gray-500">Catalog No: {(b as any).catalog_no}</p>
-                                    )}
-                                  </div>
+                          {/* Existing Books List with Drag and Drop */}
+                          <DndContext
+                            sensors={sensors}
+                            collisionDetection={closestCenter}
+                            onDragStart={handleDragStart}
+                            onDragEnd={handleDragEnd}
+                            onDragOver={handleDragOver}
+                          >
+                            <div className="space-y-2 max-h-64 overflow-auto">
+                              {(() => {
+                                const shelfBooks = shelves.find(s => s.id === selectedShelfId)?.books || []
+                                const searchFilter = (bookList: Array<{id: string, title: string, author: string, subject: string, catalog_no?: string}>) => {
+                                  if (!shelfSearchQuery.trim()) return bookList
+                                  const query = shelfSearchQuery.toLowerCase().trim()
+                                  return bookList.filter(book => 
+                                    book.title.toLowerCase().includes(query) ||
+                                    book.author.toLowerCase().includes(query) ||
+                                    book.subject.toLowerCase().includes(query) ||
+                                    (book.catalog_no && book.catalog_no.toLowerCase().includes(query))
+                                  )
+                                }
+                                const filteredShelfBooks = searchFilter(shelfBooks.map(b => ({
+                                  id: b.id,
+                                  title: b.title,
+                                  author: b.author,
+                                  subject: b.subject,
+                                  catalog_no: (b as any).catalog_no
+                                })))
+                                
+                                if (filteredShelfBooks.length === 0) {
+                                  return (
+                                    <div className="text-center py-8 text-gray-500 text-sm">
+                                      No books found {shelfSearchQuery ? `matching "${shelfSearchQuery}"` : "in this shelf"}
+                                    </div>
+                                  )
+                                }
+                                
+                                return (
+                                  <>
+                                    <div className="flex items-center gap-2 mb-2 pb-2 border-b">
+                                      <Checkbox
+                                        checked={selectedBooks.size === filteredShelfBooks.length && filteredShelfBooks.length > 0}
+                                        onCheckedChange={() => toggleSelectAll(filteredShelfBooks.map(b => b.id))}
+                                      />
+                                      <span className="text-xs text-gray-600">Select all</span>
+                                    </div>
+                                    <SortableContext items={filteredShelfBooks.map(b => b.id)} strategy={verticalListSortingStrategy}>
+                                      {filteredShelfBooks.map(b => {
+                                        const book = books.find((bk: any) => bk.id.toString() === b.id)
+                                        return (
+                                          <SortableBookItem
+                                            key={b.id}
+                                            book={b}
+                                            bookData={book}
+                                            isSelected={selectedBooks.has(b.id)}
+                                            onSelect={() => toggleBookSelection(b.id)}
+                                            onEdit={() => {
+                                              if (book) {
+                                                startEditBook(
+                                                  b.id,
+                                                  book.title,
+                                                  book.author,
+                                                  book.subject,
+                                                  book.catalog_no,
+                                                  book.cover_photo_url,
+                                                  book.quantity,
+                                                  book.shelf
+                                                )
+                                              }
+                                            }}
+                                            onDelete={() => removeBookFromShelf(b.id)}
+                                            isLoading={isLoading}
+                                          />
+                                        )
+                                      })}
+                                    </SortableContext>
+                                  </>
+                                )
+                              })()}
+                            </div>
+                            <DragOverlay>
+                              {activeId ? (
+                                <div className="p-2 border rounded bg-white shadow-lg opacity-90">
+                                  <p className="font-medium text-sm">
+                                    {books.find((b: any) => b.id.toString() === activeId)?.title || "Book"}
+                                  </p>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <Button size="sm" variant="outline" onClick={() => startEditBook(b.id, b.title, b.author, b.subject, (b as any).catalog_no, (b as any).cover_photo_url || (b as any).coverPhotoUrl, (b as any).quantity, (b as any).shelf)}>
-                                    <Edit className="h-3 w-3 mr-1" /> Edit
-                                  </Button>
-                                  <Button size="sm" variant="destructive" onClick={() => removeBookFromShelf(b.id)} disabled={isLoading}>
-                                    <Trash2 className="h-3 w-3 mr-1" /> Delete
-                                  </Button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
+                              ) : null}
+                            </DragOverlay>
+                          </DndContext>
                         </div>
                       </div>
                     </div>
