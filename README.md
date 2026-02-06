@@ -22,6 +22,19 @@ A modern library management system with ESP32 LED control for subject area illum
 | Values Education | LED5 | GPIO 19 | 🟣 |
 | TLE | LED6 | GPIO 21 | 🟠 |
 
+## ☁️ Vercel Deployment
+
+For the build to succeed on Vercel, add **Environment Variables** in your project:
+
+1. Vercel Dashboard → your project → **Settings** → **Environment Variables**
+2. Add at least (from `.env.example`):
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `NEXT_PUBLIC_APP_URL` (e.g. `https://your-app.vercel.app`)
+
+Then **Redeploy** (Deployments → … → Redeploy).
+
 ## 🚀 Quick Start
 
 ### Prerequisites
