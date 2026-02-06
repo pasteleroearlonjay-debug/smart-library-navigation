@@ -1,6 +1,6 @@
 # 🏫 Smart Library System
 
-A modern library management system with ESP32 LED control for subject area illumination. When users search for books, the corresponding subject LED lights up on the ESP32 hardware.
+A modern library management system with ESP32 LED control for subject area illumination. Deploys to Vercel. When users search for books, the corresponding subject LED lights up on the ESP32 hardware.
 
 ## ✨ Features
 
